@@ -120,10 +120,11 @@ resource "azurerm_network_security_group" "nsg_aks" {
   resource_group_name = var.resource_group_name
 
   # Allow Azure Load Balancer health probes (168.63.129.16)
-  # This is REQUIRED for ILB to function correctly
+  # REQUIRED for ILB to function correctly. Priority must be lowest number
+  # so health probes are never denied before reaching this rule.
   security_rule {
     name                       = "Allow-AzureLoadBalancer-Inbound"
-    priority                   = 90
+    priority                   = 100
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "*"
@@ -136,7 +137,7 @@ resource "azurerm_network_security_group" "nsg_aks" {
   # Allow Inbound from Application Gateway Subnet (now in Spoke VNet)
   security_rule {
     name                       = "Allow-AppGW-Inbound"
-    priority                   = 100
+    priority                   = 110
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
@@ -149,7 +150,7 @@ resource "azurerm_network_security_group" "nsg_aks" {
   # Allow Inbound from Management Subnet (SSH/kubectl)
   security_rule {
     name                       = "Allow-Mgmt-Inbound"
-    priority                   = 110
+    priority                   = 120
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
