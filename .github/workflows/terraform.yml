@@ -4,7 +4,7 @@ name: "Terraform Infrastructure Pipeline"
 # Triggers:
 #   push to main        → plan + apply (deploys infra)
 #   pull_request        → plan only (preview, no apply)
-#   workflow_dispatch   → manual trigger (plan + apply)
+#   workflow_dispatch   → manual trigger (plan/apply/destroy)
 # ──────────────────────────────────────────────────────────────
 on:
   push:
@@ -36,8 +36,8 @@ on:
 # No client secret needed — GitHub's JWT is trusted directly.
 # ──────────────────────────────────────────────────────────────
 permissions:
-  id-token: write   # Allows GitHub to mint an OIDC token
-  contents: read    # Allows checkout
+  id-token: write       # Allows GitHub to mint an OIDC token
+  contents: read        # Allows checkout
   pull-requests: write  # Allows posting plan results as PR comments
 
 jobs:
@@ -47,43 +47,67 @@ jobs:
 
     # ── Authenticate via OIDC (no secrets!) ──────────────────
     env:
-      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_USE_OIDC: "true"   # Tells the AzureRM provider to use OIDC
+      ARM_USE_OIDC: "true"   # AzureRM provider handles OIDC natively
+      KV_NAME: "cognidispatch-kv"
+      RG_NAME:  "test-rg"
 
     steps:
-      # ── 1. Checkout ──────────────────────────────────────────
+      # ── 1. Checkout ───────────────────────────────────────────
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # ── 2. Azure Login (for CLI — needed for KV firewall mgmt) ─
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ── 2. Setup Terraform ───────────────────────────────────
-      # NOTE: No azure/login step needed — Terraform's AzureRM provider
-      # handles OIDC natively via ARM_USE_OIDC=true + ARM_CLIENT_ID/TENANT/SUB.
-      # GitHub injects ACTIONS_ID_TOKEN_REQUEST_TOKEN automatically.
+      # ── 3. Whitelist Runner IP in Key Vault Firewall ──────────
+      # GitHub Actions runners use dynamic IPs that the KV firewall blocks.
+      # We fetch the runner's current public IP and temporarily allow it,
+      # then remove it in the cleanup step at the end.
+      - name: Whitelist Runner IP in Key Vault Firewall
+        id: kv_ip
+        run: |
+          RUNNER_IP=$(curl -s https://api.ipify.org)
+          echo "Runner public IP: $RUNNER_IP"
+          echo "runner_ip=$RUNNER_IP" >> $GITHUB_OUTPUT
+          az keyvault network-rule add \
+            --name $KV_NAME \
+            --resource-group $RG_NAME \
+            --ip-address "$RUNNER_IP"
+          echo "✅ IP $RUNNER_IP added to KV firewall allowlist"
+          # Allow a few seconds for the firewall rule to propagate
+          sleep 10
+
+      # ── 4. Setup Terraform ────────────────────────────────────
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.7"
 
-      # ── 4. Format Check ──────────────────────────────────────
+      # ── 5. Format Check ───────────────────────────────────────
       - name: Terraform Format Check
         id: fmt
         run: terraform fmt -check -recursive
         continue-on-error: true   # Report but don't block
 
-      # ── 5. Init (backend: Azure Blob Storage) ────────────────
+      # ── 6. Init (backend: Azure Blob Storage) ─────────────────
       - name: Terraform Init
         id: init
         run: terraform init -input=false
 
-      # ── 6. Validate ──────────────────────────────────────────
+      # ── 7. Validate ───────────────────────────────────────────
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
 
-      # ── 7. Plan ──────────────────────────────────────────────
+      # ── 8. Plan ───────────────────────────────────────────────
       - name: Terraform Plan
         id: plan
         run: |
@@ -95,7 +119,7 @@ jobs:
             -out=tfplan 2>&1 | tee plan_output.txt
         continue-on-error: false
 
-      # ── 8. Post Plan as PR Comment ───────────────────────────
+      # ── 9. Post Plan as PR Comment ────────────────────────────
       - name: Post Plan to PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -147,14 +171,14 @@ jobs:
               body,
             });
 
-      # ── 9. Apply (only on push to main OR manual apply) ──────
+      # ── 10. Apply (only on push to main OR manual apply) ──────
       - name: Terraform Apply
         if: |
           (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
           (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
         run: terraform apply -auto-approve -input=false tfplan
 
-      # ── 10. Destroy (manual only, explicit confirmation) ──────
+      # ── 11. Destroy (manual only) ─────────────────────────────
       - name: Terraform Destroy
         if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
         run: |
@@ -164,7 +188,19 @@ jobs:
             -var="smtp_user=${{ secrets.SMTP_USER }}" \
             -var="smtp_pass=${{ secrets.SMTP_PASS }}"
 
-      # ── 11. Job Summary ──────────────────────────────────────
+      # ── 12. Cleanup — Remove Runner IP from KV Firewall ───────
+      # Always runs (even on failure) to ensure the IP is cleaned up.
+      - name: Remove Runner IP from Key Vault Firewall
+        if: always() && steps.kv_ip.outputs.runner_ip != ''
+        run: |
+          RUNNER_IP="${{ steps.kv_ip.outputs.runner_ip }}"
+          az keyvault network-rule remove \
+            --name $KV_NAME \
+            --resource-group $RG_NAME \
+            --ip-address "$RUNNER_IP" || true
+          echo "✅ IP $RUNNER_IP removed from KV firewall"
+
+      # ── 13. Job Summary ───────────────────────────────────────
       - name: Pipeline Summary
         if: always()
         run: |
@@ -179,3 +215,4 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Trigger:** \`${{ github.event_name }}\` on \`${{ github.ref }}\`" >> $GITHUB_STEP_SUMMARY
           echo "**Actor:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Runner IP:** \`${{ steps.kv_ip.outputs.runner_ip }}\` (auto-removed from KV firewall)" >> $GITHUB_STEP_SUMMARY
