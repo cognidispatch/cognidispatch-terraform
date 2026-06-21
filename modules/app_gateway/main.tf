@@ -11,10 +11,18 @@ resource "azurerm_application_gateway" "appgw" {
   resource_group_name = var.resource_group_name
   location            = var.location
 
+  # WAF_v2 SKU enables Web Application Firewall with OWASP ruleset
   sku {
-    name     = "Standard_v2"
-    tier     = "Standard_v2"
+    name     = "WAF_v2"
+    tier     = "WAF_v2"
     capacity = 1
+  }
+
+  waf_configuration {
+    enabled          = true
+    firewall_mode    = "Prevention"
+    rule_set_type    = "OWASP"
+    rule_set_version = "3.2"
   }
 
   gateway_ip_configuration {
@@ -32,9 +40,25 @@ resource "azurerm_application_gateway" "appgw" {
     public_ip_address_id = azurerm_public_ip.appgw_pip.id
   }
 
+  # Backend pool is intentionally left empty.
+  # It is populated by deploy.sh after KGateway receives its ILB IP.
   backend_address_pool {
-    name         = "kgateway-backend-pool"
-    ip_addresses = ["10.224.0.100"]
+    name = "kgateway-backend-pool"
+  }
+
+  # Custom health probe on /api/health for more reliable backend detection
+  probe {
+    name                                      = "kgateway-health-probe"
+    protocol                                  = "Http"
+    path                                      = "/api/health"
+    interval                                  = 30
+    timeout                                   = 30
+    unhealthy_threshold                       = 3
+    pick_host_name_from_backend_http_settings = true
+
+    match {
+      status_code = ["200-399"]
+    }
   }
 
   backend_http_settings {
@@ -42,7 +66,8 @@ resource "azurerm_application_gateway" "appgw" {
     cookie_based_affinity = "Disabled"
     port                  = 80
     protocol              = "Http"
-    request_timeout       = 20
+    request_timeout       = 60
+    probe_name            = "kgateway-health-probe"
   }
 
   http_listener {
@@ -61,6 +86,13 @@ resource "azurerm_application_gateway" "appgw" {
     priority                   = 100
   }
 
+  # Ignore backend pool changes so deploy.sh can patch it with the
+  # dynamically-assigned KGateway ILB IP without Terraform reverting it.
+  lifecycle {
+    ignore_changes = [
+      backend_address_pool,
+    ]
+  }
 
   tags = {
     Environment = "Production"

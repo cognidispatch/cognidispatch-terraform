@@ -37,11 +37,13 @@ resource "azurerm_virtual_network_peering" "spoke_to_hub" {
 }
 
 # Hub Subnets
+# App Gateway Subnet now lives in the SPOKE VNet alongside AKS.
+# This fixes the Cilium ILB cross-VNet Floating IP incompatibility.
 resource "azurerm_subnet" "snet_appgw" {
   name                 = "snet-appgw"
   resource_group_name  = var.resource_group_name
-  virtual_network_name = azurerm_virtual_network.hub_vnet.name
-  address_prefixes     = ["10.220.1.0/24"]
+  virtual_network_name = azurerm_virtual_network.spoke_vnet.name
+  address_prefixes     = ["10.224.20.0/24"]
 }
 
 resource "azurerm_subnet" "snet_bastion" {
@@ -117,16 +119,30 @@ resource "azurerm_network_security_group" "nsg_aks" {
   location            = var.location
   resource_group_name = var.resource_group_name
 
-  # Allow Inbound from Application Gateway Subnet
+  # Allow Azure Load Balancer health probes (168.63.129.16)
+  # This is REQUIRED for ILB to function correctly
   security_rule {
-    name                       = "Allow-AppGW-Inbound"
-    priority                   = 100
+    name                       = "Allow-AzureLoadBalancer-Inbound"
+    priority                   = 90
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "*"
     source_port_range          = "*"
     destination_port_range     = "*"
-    source_address_prefix      = "10.220.1.0/24"
+    source_address_prefix      = "AzureLoadBalancer"
+    destination_address_prefix = "*"
+  }
+
+  # Allow Inbound from Application Gateway Subnet (now in Spoke VNet)
+  security_rule {
+    name                       = "Allow-AppGW-Inbound"
+    priority                   = 100
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    source_address_prefix      = "10.224.20.0/24"
     destination_address_prefix = "10.224.0.0/20"
   }
 
@@ -138,7 +154,7 @@ resource "azurerm_network_security_group" "nsg_aks" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_ranges    = ["22", "80", "443", "6443", "30835"]
+    destination_port_ranges    = ["22", "443", "6443"]
     source_address_prefix      = "10.224.17.0/24"
     destination_address_prefix = "10.224.0.0/20"
   }
