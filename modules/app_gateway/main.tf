@@ -68,15 +68,16 @@ resource "azurerm_application_gateway" "appgw" {
     name = "kgateway-backend-pool"
   }
 
-  # Custom health probe on /api/health
+  # Custom health probe - uses fixed host header since backend pool
+  # is initially empty (populated by deploy.sh after KGateway ILB IP is assigned).
   probe {
-    name                                      = "kgateway-health-probe"
-    protocol                                  = "Http"
-    path                                      = "/api/health"
-    interval                                  = 30
-    timeout                                   = 30
-    unhealthy_threshold                       = 3
-    pick_host_name_from_backend_http_settings = true
+    name                = "kgateway-health-probe"
+    protocol            = "Http"
+    path                = "/api/health"
+    host                = "127.0.0.1"
+    interval            = 30
+    timeout             = 30
+    unhealthy_threshold = 3
 
     match {
       status_code = ["200-399"]
