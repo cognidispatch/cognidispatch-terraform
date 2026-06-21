@@ -12,6 +12,8 @@ resource "azurerm_bastion_host" "bastion" {
   name                = "cogni-bastion"
   location            = var.location
   resource_group_name = var.resource_group_name
+  sku                 = "Standard"
+  tunneling_enabled   = true
 
   ip_configuration {
     name                 = "configuration"

@@ -39,20 +39,6 @@ resource "azurerm_federated_identity_credential" "fed_cred" {
   subject             = "system:serviceaccount:cogni-dispatch:${each.key}"
 }
 
-# Create the AGIC managed identity directly
-resource "azurerm_user_assigned_identity" "agic" {
-  name                = "ingressappgw-cogni-aks"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-}
-
-# Role Assignment: AGIC identity needs Contributor on Application Gateway
-resource "azurerm_role_assignment" "agic_appgw" {
-  scope                = var.app_gateway_id
-  role_definition_name = "Contributor"
-  principal_id         = azurerm_user_assigned_identity.agic.principal_id
-}
-
 # Role Assignment: Kubelet identity needs AcrPull on ACR
 data "azurerm_client_config" "current" {}
 

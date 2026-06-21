@@ -33,11 +33,12 @@ resource "azurerm_application_gateway" "appgw" {
   }
 
   backend_address_pool {
-    name = "default-backend-pool"
+    name         = "kgateway-backend-pool"
+    ip_addresses = ["10.224.0.100"]
   }
 
   backend_http_settings {
-    name                  = "default-http-settings"
+    name                  = "kgateway-http-settings"
     cookie_based_affinity = "Disabled"
     port                  = 80
     protocol              = "Http"
@@ -45,31 +46,21 @@ resource "azurerm_application_gateway" "appgw" {
   }
 
   http_listener {
-    name                           = "default-listener"
+    name                           = "kgateway-listener"
     frontend_ip_configuration_name = "appgw-frontend-ip"
     frontend_port_name             = "port-80"
     protocol                       = "Http"
   }
 
   request_routing_rule {
-    name                       = "default-rule"
+    name                       = "kgateway-routing-rule"
     rule_type                  = "Basic"
-    http_listener_name         = "default-listener"
-    backend_address_pool_name  = "default-backend-pool"
-    backend_http_settings_name = "default-http-settings"
+    http_listener_name         = "kgateway-listener"
+    backend_address_pool_name  = "kgateway-backend-pool"
+    backend_http_settings_name = "kgateway-http-settings"
     priority                   = 100
   }
 
-  lifecycle {
-    ignore_changes = [
-      backend_address_pool,
-      backend_http_settings,
-      http_listener,
-      request_routing_rule,
-      probe,
-      url_path_map
-    ]
-  }
 
   tags = {
     Environment = "Production"

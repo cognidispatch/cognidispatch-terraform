@@ -138,7 +138,7 @@ resource "azurerm_network_security_group" "nsg_aks" {
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
-    destination_port_ranges    = ["22", "443", "6443"]
+    destination_port_ranges    = ["22", "80", "443", "6443", "30835"]
     source_address_prefix      = "10.224.17.0/24"
     destination_address_prefix = "10.224.0.0/20"
   }
