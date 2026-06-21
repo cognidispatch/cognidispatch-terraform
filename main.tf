@@ -89,3 +89,33 @@ module "security" {
   jumpbox_principal_id       = module.bastion.jumpbox_principal_id
   app_gateway_subnet_id      = module.network.snet_appgw_id
 }
+
+# Dynamic application secrets written straight to Key Vault
+resource "random_password" "jwt_secret" {
+  length  = 32
+  special = true
+}
+
+resource "azurerm_key_vault_secret" "mongodb_uri" {
+  name         = "MONGODB-URI"
+  value        = module.data.mongodb_uri
+  key_vault_id = module.data.key_vault_id
+}
+
+resource "azurerm_key_vault_secret" "azure_openai_key" {
+  name         = "AZURE-OPENAI-KEY"
+  value        = module.cognitive.openai_key
+  key_vault_id = module.data.key_vault_id
+}
+
+resource "azurerm_key_vault_secret" "azure_speech_key" {
+  name         = "AZURE-SPEECH-KEY"
+  value        = module.cognitive.speech_key
+  key_vault_id = module.data.key_vault_id
+}
+
+resource "azurerm_key_vault_secret" "jwt_secret" {
+  name         = "JWT-SECRET"
+  value        = random_password.jwt_secret.result
+  key_vault_id = module.data.key_vault_id
+}

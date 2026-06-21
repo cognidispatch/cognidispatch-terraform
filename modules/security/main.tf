@@ -27,16 +27,25 @@ locals {
     "vendor-service-sa",
     "frontend-sa"
   ]
+  namespaces = ["cogni-dev", "cogni-dispatch"]
+
+  fed_creds = {
+    for pair in setproduct(local.namespaces, local.service_accounts) :
+    "${pair[0]}-${pair[1]}" => {
+      namespace       = pair[0]
+      service_account = pair[1]
+    }
+  }
 }
 
 resource "azurerm_federated_identity_credential" "fed_cred" {
-  for_each            = toset(local.service_accounts)
+  for_each            = local.fed_creds
   name                = "fed-cred-${each.key}"
   resource_group_name = var.resource_group_name
   audience            = ["api://AzureADTokenExchange"]
   issuer              = var.aks_oidc_issuer_url
   parent_id           = azurerm_user_assigned_identity.pod_identity.id
-  subject             = "system:serviceaccount:cogni-dispatch:${each.key}"
+  subject             = "system:serviceaccount:${each.value.namespace}:${each.value.service_account}"
 }
 
 # Role Assignment: Kubelet identity needs AcrPull on ACR

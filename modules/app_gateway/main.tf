@@ -8,10 +8,22 @@ resource "azurerm_web_application_firewall_policy" "waf_policy" {
     mode                        = "Prevention"
     request_body_check          = true
     file_upload_limit_in_mb     = 100
-    max_request_body_size_in_kb = 128
+    max_request_body_size_in_kb = 2000
   }
 
   managed_rules {
+    exclusion {
+      match_variable          = "RequestArgNames"
+      selector                = "image"
+      selector_match_operator = "Equals"
+    }
+
+    exclusion {
+      match_variable          = "RequestArgValues"
+      selector                = "image"
+      selector_match_operator = "Equals"
+    }
+
     managed_rule_set {
       type    = "OWASP"
       version = "3.2"

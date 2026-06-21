@@ -54,6 +54,10 @@ resource "azurerm_private_endpoint" "pe_cosmos" {
 }
 
 
+data "http" "client_ip" {
+  url = "https://api.ipify.org"
+}
+
 # Key Vault
 resource "azurerm_key_vault" "kv" {
   name                       = "cognidispatch-kv"
@@ -70,7 +74,7 @@ resource "azurerm_key_vault" "kv" {
   network_acls {
     bypass         = "AzureServices"
     default_action = "Deny"
-    ip_rules       = []
+    ip_rules       = [chomp(data.http.client_ip.response_body)]
   }
 
   # Grant Terraform Service Principal access

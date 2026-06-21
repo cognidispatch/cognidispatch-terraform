@@ -3,6 +3,11 @@ output "key_vault_id" {
   value       = azurerm_key_vault.kv.id
 }
 
+output "key_vault_name" {
+  description = "The name of the Azure Key Vault"
+  value       = azurerm_key_vault.kv.name
+}
+
 output "key_vault_uri" {
   description = "The vault URI of the Azure Key Vault"
   value       = azurerm_key_vault.kv.vault_uri

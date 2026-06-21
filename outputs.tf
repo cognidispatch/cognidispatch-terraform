@@ -49,3 +49,13 @@ output "jumpbox_ssh_private_key" {
   sensitive   = true
 }
 
+output "pod_identity_client_id" {
+  description = "The client ID of the pod identity used for Workload Identity"
+  value       = module.security.pod_identity_client_id
+}
+
+output "key_vault_name" {
+  description = "The name of the Azure Key Vault"
+  value       = module.data.key_vault_name
+}
+
