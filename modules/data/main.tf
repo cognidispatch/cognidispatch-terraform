@@ -82,6 +82,12 @@ resource "azurerm_key_vault" "kv" {
       "Get", "List", "Set", "Delete", "Purge", "Recover"
     ]
   }
+
+  lifecycle {
+    ignore_changes = [
+      access_policy,
+    ]
+  }
 }
 
 # Key Vault Private Endpoint

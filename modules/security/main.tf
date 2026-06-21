@@ -55,6 +55,13 @@ resource "azurerm_role_assignment" "jumpbox_aks_admin" {
   principal_id         = var.jumpbox_principal_id
 }
 
+# Role Assignment: Jumpbox VM identity needs "Azure Kubernetes Service Cluster User Role" to list cluster user credentials
+resource "azurerm_role_assignment" "jumpbox_aks_user" {
+  scope                = var.aks_cluster_id
+  role_definition_name = "Azure Kubernetes Service Cluster User Role"
+  principal_id         = var.jumpbox_principal_id
+}
+
 # Role Assignment: Jumpbox VM identity needs "AcrPush" on ACR to build and push images
 resource "azurerm_role_assignment" "jumpbox_acr_push" {
   scope                = var.acr_id
