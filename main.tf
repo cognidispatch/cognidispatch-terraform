@@ -98,7 +98,7 @@ resource "random_password" "jwt_secret" {
 
 resource "azurerm_key_vault_secret" "mongodb_uri" {
   name         = "MONGODB-URI"
-  value        = module.data.mongodb_uri
+  value        = replace(module.data.mongodb_uri, "/?", "/cognidispatch?")
   key_vault_id = module.data.key_vault_id
 }
 
@@ -117,5 +117,35 @@ resource "azurerm_key_vault_secret" "azure_speech_key" {
 resource "azurerm_key_vault_secret" "jwt_secret" {
   name         = "JWT-SECRET"
   value        = random_password.jwt_secret.result
+  key_vault_id = module.data.key_vault_id
+}
+
+# ── Service Bus ────────────────────────────────────────────────────────────────
+module "servicebus" {
+  source              = "./modules/servicebus"
+  location            = var.location
+  resource_group_name = var.resource_group_name
+}
+
+# Store Service Bus connection string securely in Key Vault
+resource "azurerm_key_vault_secret" "servicebus_connection" {
+  name         = "SERVICEBUS-CONNECTION"
+  value        = module.servicebus.servicebus_connection_string
+  key_vault_id = module.data.key_vault_id
+}
+
+# ── Email (SMTP via Gmail App Password or any SMTP provider) ───────────────────
+# Store SMTP credentials in Key Vault — never hardcoded
+# To set: az keyvault secret set --vault-name cognidispatch-kv --name SMTP-USER --value "you@gmail.com"
+#         az keyvault secret set --vault-name cognidispatch-kv --name SMTP-PASS --value "your-app-password"
+resource "azurerm_key_vault_secret" "smtp_user" {
+  name         = "SMTP-USER"
+  value        = var.smtp_user
+  key_vault_id = module.data.key_vault_id
+}
+
+resource "azurerm_key_vault_secret" "smtp_pass" {
+  name         = "SMTP-PASS"
+  value        = var.smtp_pass
   key_vault_id = module.data.key_vault_id
 }

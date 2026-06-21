@@ -27,3 +27,18 @@ variable "jumpbox_vm_size" {
   type        = string
   default     = "Standard_D2s_v5"
 }
+
+# ── Email / SMTP credentials ───────────────────────────────────────────────────
+variable "smtp_user" {
+  description = "SMTP sender email address (e.g. your Gmail address)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "smtp_pass" {
+  description = "SMTP password or Gmail App Password for the sender account"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

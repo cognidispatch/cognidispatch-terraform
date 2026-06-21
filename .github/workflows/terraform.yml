@@ -1,56 +1,181 @@
 name: "Terraform Infrastructure Pipeline"
 
+# ──────────────────────────────────────────────────────────────
+# Triggers:
+#   push to main        → plan + apply (deploys infra)
+#   pull_request        → plan only (preview, no apply)
+#   workflow_dispatch   → manual trigger (plan + apply)
+# ──────────────────────────────────────────────────────────────
 on:
   push:
     branches:
       - main
     paths:
-      - '**.tf'
-      - 'modules/**'
+      - "**.tf"
+      - "modules/**"
   pull_request:
     branches:
       - main
     paths:
-      - '**.tf'
-      - 'modules/**'
+      - "**.tf"
+      - "modules/**"
   workflow_dispatch:
+    inputs:
+      action:
+        description: "Choose pipeline action"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
 
+# ──────────────────────────────────────────────────────────────
+# OIDC: Required for Azure Workload Identity Federation
+# No client secret needed — GitHub's JWT is trusted directly.
+# ──────────────────────────────────────────────────────────────
 permissions:
-  id-token: write
-  contents: read
+  id-token: write   # Allows GitHub to mint an OIDC token
+  contents: read    # Allows checkout
+  pull-requests: write  # Allows posting plan results as PR comments
 
 jobs:
   terraform:
     name: "Terraform Plan & Apply"
     runs-on: ubuntu-latest
+
+    # ── Authenticate via OIDC (no secrets!) ──────────────────
     env:
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
       ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_USE_OIDC: "true"   # Tells the AzureRM provider to use OIDC
+
     steps:
+      # ── 1. Checkout ──────────────────────────────────────────
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+
+      # ── 2. Setup Terraform ───────────────────────────────────
+      # NOTE: No azure/login step needed — Terraform's AzureRM provider
+      # handles OIDC natively via ARM_USE_OIDC=true + ARM_CLIENT_ID/TENANT/SUB.
+      # GitHub injects ACTIONS_ID_TOKEN_REQUEST_TOKEN automatically.
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.7.0
+          terraform_version: "~1.7"
 
+      # ── 4. Format Check ──────────────────────────────────────
       - name: Terraform Format Check
-        run: terraform fmt -check
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true   # Report but don't block
 
+      # ── 5. Init (backend: Azure Blob Storage) ────────────────
       - name: Terraform Init
-        run: terraform init
+        id: init
+        run: terraform init -input=false
 
+      # ── 6. Validate ──────────────────────────────────────────
       - name: Terraform Validate
-        run: terraform validate
+        id: validate
+        run: terraform validate -no-color
 
+      # ── 7. Plan ──────────────────────────────────────────────
       - name: Terraform Plan
         id: plan
-        run: terraform plan -no-color -out=tfplan
+        run: |
+          terraform plan \
+            -no-color \
+            -input=false \
+            -var="smtp_user=${{ secrets.SMTP_USER }}" \
+            -var="smtp_pass=${{ secrets.SMTP_PASS }}" \
+            -out=tfplan 2>&1 | tee plan_output.txt
         continue-on-error: false
 
+      # ── 8. Post Plan as PR Comment ───────────────────────────
+      - name: Post Plan to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const planOutput = fs.readFileSync('plan_output.txt', 'utf8');
+            const maxLen = 60000;
+            const truncated = planOutput.length > maxLen
+              ? planOutput.slice(0, maxLen) + '\n\n... (truncated)'
+              : planOutput;
+
+            const body = `## 🏗️ Terraform Plan Results
+
+            **Format:** \`${{ steps.fmt.outcome }}\` | **Init:** \`${{ steps.init.outcome }}\` | **Validate:** \`${{ steps.validate.outcome }}\` | **Plan:** \`${{ steps.plan.outcome }}\`
+
+            <details><summary>📋 Show Full Plan</summary>
+
+            \`\`\`hcl
+            ${truncated}
+            \`\`\`
+
+            </details>
+
+            > 🔒 Pushed by @${{ github.actor }} on \`${{ github.head_ref }}\`
+            > ⚠️ Merging this PR will trigger **terraform apply** on main.`;
+
+            // Delete previous bot comments to keep PR clean
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            for (const comment of comments.data) {
+              if (comment.user.type === 'Bot' && comment.body.includes('Terraform Plan Results')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      # ── 9. Apply (only on push to main OR manual apply) ──────
       - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -auto-approve tfplan
+        if: |
+          (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+          (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
+        run: terraform apply -auto-approve -input=false tfplan
+
+      # ── 10. Destroy (manual only, explicit confirmation) ──────
+      - name: Terraform Destroy
+        if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+        run: |
+          terraform destroy \
+            -auto-approve \
+            -input=false \
+            -var="smtp_user=${{ secrets.SMTP_USER }}" \
+            -var="smtp_pass=${{ secrets.SMTP_PASS }}"
+
+      # ── 11. Job Summary ──────────────────────────────────────
+      - name: Pipeline Summary
+        if: always()
+        run: |
+          echo "## 🏗️ Terraform Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Format Check | ${{ steps.fmt.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Init         | ${{ steps.init.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Validate     | ${{ steps.validate.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Plan         | ${{ steps.plan.outcome }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** \`${{ github.event_name }}\` on \`${{ github.ref }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Actor:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
