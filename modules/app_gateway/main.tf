@@ -1,3 +1,29 @@
+resource "azurerm_web_application_firewall_policy" "waf_policy" {
+  name                = "waf-policy-cogni-appgw"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+
+  policy_settings {
+    enabled                     = true
+    mode                        = "Prevention"
+    request_body_check          = true
+    file_upload_limit_in_mb     = 100
+    max_request_body_size_in_kb = 128
+  }
+
+  managed_rules {
+    managed_rule_set {
+      type    = "OWASP"
+      version = "3.2"
+    }
+  }
+
+  tags = {
+    Environment = "Production"
+    Project     = "CogniDispatch"
+  }
+}
+
 resource "azurerm_public_ip" "appgw_pip" {
   name                = "pip-cogni-appgw"
   location            = var.location
@@ -11,19 +37,15 @@ resource "azurerm_application_gateway" "appgw" {
   resource_group_name = var.resource_group_name
   location            = var.location
 
-  # WAF_v2 SKU enables Web Application Firewall with OWASP ruleset
+  # WAF_v2 SKU - inline waf_configuration block is retired by Azure.
+  # WAF policy is attached via firewall_policy_id instead.
   sku {
     name     = "WAF_v2"
     tier     = "WAF_v2"
     capacity = 1
   }
 
-  waf_configuration {
-    enabled          = true
-    firewall_mode    = "Prevention"
-    rule_set_type    = "OWASP"
-    rule_set_version = "3.2"
-  }
+  firewall_policy_id = azurerm_web_application_firewall_policy.waf_policy.id
 
   gateway_ip_configuration {
     name      = "appgw-ip-config"
@@ -40,13 +62,13 @@ resource "azurerm_application_gateway" "appgw" {
     public_ip_address_id = azurerm_public_ip.appgw_pip.id
   }
 
-  # Backend pool is intentionally left empty.
-  # It is populated by deploy.sh after KGateway receives its ILB IP.
+  # Backend pool intentionally empty - populated by deploy.sh after
+  # KGateway receives its dynamic ILB IP from Azure.
   backend_address_pool {
     name = "kgateway-backend-pool"
   }
 
-  # Custom health probe on /api/health for more reliable backend detection
+  # Custom health probe on /api/health
   probe {
     name                                      = "kgateway-health-probe"
     protocol                                  = "Http"
@@ -86,8 +108,8 @@ resource "azurerm_application_gateway" "appgw" {
     priority                   = 100
   }
 
-  # Ignore backend pool changes so deploy.sh can patch it with the
-  # dynamically-assigned KGateway ILB IP without Terraform reverting it.
+  # Ignore backend pool so deploy.sh can patch it with the KGateway ILB IP
+  # without Terraform reverting it on subsequent applies.
   lifecycle {
     ignore_changes = [
       backend_address_pool,
