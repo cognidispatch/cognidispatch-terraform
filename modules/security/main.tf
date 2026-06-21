@@ -69,3 +69,17 @@ resource "azurerm_role_assignment" "jumpbox_acr_push" {
   principal_id         = var.jumpbox_principal_id
 }
 
+# Role Assignment: Jumpbox VM identity needs "Reader" on the Resource Group to view network settings (like public IPs)
+resource "azurerm_role_assignment" "jumpbox_rg_reader" {
+  scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}"
+  role_definition_name = "Reader"
+  principal_id         = var.jumpbox_principal_id
+}
+
+# Role Assignment: Jumpbox VM identity needs "Network Contributor" on the Application Gateway to patch backend pools
+resource "azurerm_role_assignment" "jumpbox_appgw_contributor" {
+  scope                = var.app_gateway_id
+  role_definition_name = "Network Contributor"
+  principal_id         = var.jumpbox_principal_id
+}
+
