@@ -13,11 +13,17 @@ variable "location" {
 variable "jumpbox_admin_username" {
   description = "The admin username for the Linux Jumpbox VM"
   type        = string
-  default     = "azureuser"
+  default     = "azure"
 }
 
 variable "jumpbox_ssh_public_key" {
   description = "The SSH public key for logging into the Linux Jumpbox VM. If not provided, SSH keys will not be configured."
   type        = string
   default     = ""
+}
+
+variable "jumpbox_vm_size" {
+  description = "The size of the Linux Jumpbox VM"
+  type        = string
+  default     = "Standard_D2s_v5"
 }

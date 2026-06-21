@@ -39,17 +39,18 @@ resource "azurerm_federated_identity_credential" "fed_cred" {
   subject             = "system:serviceaccount:cogni-dispatch:${each.key}"
 }
 
-# Query the auto-generated AGIC managed identity from the node resource group
-data "azurerm_user_assigned_identity" "agic" {
+# Create the AGIC managed identity directly
+resource "azurerm_user_assigned_identity" "agic" {
   name                = "ingressappgw-cogni-aks"
-  resource_group_name = var.node_resource_group
+  location            = var.location
+  resource_group_name = var.resource_group_name
 }
 
 # Role Assignment: AGIC identity needs Contributor on Application Gateway
 resource "azurerm_role_assignment" "agic_appgw" {
   scope                = var.app_gateway_id
   role_definition_name = "Contributor"
-  principal_id         = data.azurerm_user_assigned_identity.agic.principal_id
+  principal_id         = azurerm_user_assigned_identity.agic.principal_id
 }
 
 # Role Assignment: Kubelet identity needs AcrPull on ACR
@@ -60,3 +61,18 @@ resource "azurerm_role_assignment" "kubelet_acr" {
   role_definition_name = "AcrPull"
   principal_id         = var.kubelet_identity_object_id
 }
+
+# Role Assignment: Jumpbox VM identity needs "Azure Kubernetes Service Cluster Admin Role" on AKS Cluster
+resource "azurerm_role_assignment" "jumpbox_aks_admin" {
+  scope                = var.aks_cluster_id
+  role_definition_name = "Azure Kubernetes Service Cluster Admin Role"
+  principal_id         = var.jumpbox_principal_id
+}
+
+# Role Assignment: Jumpbox VM identity needs "AcrPush" on ACR to build and push images
+resource "azurerm_role_assignment" "jumpbox_acr_push" {
+  scope                = var.acr_id
+  role_definition_name = "AcrPush"
+  principal_id         = var.jumpbox_principal_id
+}
+

@@ -29,3 +29,9 @@ variable "ssh_public_key" {
   type        = string
   default     = ""
 }
+
+variable "vm_size" {
+  description = "The VM size for the Linux Jumpbox VM"
+  type        = string
+  default     = "Standard_D2s_v5"
+}

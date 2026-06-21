@@ -51,11 +51,13 @@ resource "azurerm_network_interface" "jumpbox_nic" {
 
 # Linux Jumpbox VM for cluster management
 resource "azurerm_linux_virtual_machine" "jumpbox" {
-  name                = "cogni-jumpbox"
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  size                = "Standard_B2s"
-  admin_username      = var.admin_username
+  name                            = "cogni-jumpbox"
+  resource_group_name             = var.resource_group_name
+  location                        = var.location
+  size                            = var.vm_size
+  admin_username                  = var.admin_username
+  admin_password                  = "Azure123!"
+  disable_password_authentication = false
 
   network_interface_ids = [
     azurerm_network_interface.jumpbox_nic.id,
@@ -64,6 +66,11 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
   admin_ssh_key {
     username   = var.admin_username
     public_key = local.ssh_key
+  }
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.jumpbox_identity.id]
   }
 
   os_disk {
@@ -97,6 +104,10 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
 
               # Install kubelogin
               az aks install-cli
+
+              # Enable password authentication in SSH daemon (Ubuntu 22.04)
+              echo "PasswordAuthentication yes" > /etc/ssh/sshd_config.d/60-password-auth.conf
+              systemctl restart ssh
               EOF
   )
 
@@ -104,4 +115,10 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
     Environment = "Production"
     Project     = "CogniDispatch"
   }
+}
+
+resource "azurerm_user_assigned_identity" "jumpbox_identity" {
+  name                = "cogni-jumpbox-identity"
+  location            = var.location
+  resource_group_name = var.resource_group_name
 }

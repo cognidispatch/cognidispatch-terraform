@@ -6,6 +6,7 @@ resource "azurerm_cognitive_account" "openai" {
   kind                          = "OpenAI"
   sku_name                      = "S0"
   public_network_access_enabled = false
+  custom_subdomain_name         = "cogni-openai-93849"
 
   tags = {
     Environment = "Production"
@@ -42,6 +43,7 @@ resource "azurerm_cognitive_account" "speech" {
   kind                          = "SpeechServices"
   sku_name                      = "S0"
   public_network_access_enabled = false
+  custom_subdomain_name         = "cogni-speech-93849"
 
   tags = {
     Environment = "Production"

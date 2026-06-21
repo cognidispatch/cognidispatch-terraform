@@ -71,6 +71,7 @@ module "bastion" {
   mgmt_subnet_id      = module.network.snet_mgmt_id
   admin_username      = var.jumpbox_admin_username
   ssh_public_key      = var.jumpbox_ssh_public_key
+  vm_size             = var.jumpbox_vm_size
 }
 
 # Security Module: Managed identities, Workload Identity federations, and role integrations
@@ -85,4 +86,5 @@ module "security" {
   app_gateway_id             = module.app_gateway.app_gateway_id
   node_resource_group        = module.aks.node_resource_group
   kubelet_identity_object_id = module.aks.kubelet_identity_object_id
+  jumpbox_principal_id       = module.bastion.jumpbox_principal_id
 }

@@ -42,3 +42,8 @@ variable "kubelet_identity_object_id" {
   description = "The object ID of the AKS kubelet identity"
   type        = string
 }
+
+variable "jumpbox_principal_id" {
+  description = "The principal ID of the jumpbox VM's system-assigned managed identity"
+  type        = string
+}

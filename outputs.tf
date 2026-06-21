@@ -42,3 +42,10 @@ output "acr_login_server" {
   description = "The login server for the Azure Container Registry"
   value       = module.registry.acr_login_server
 }
+
+output "jumpbox_ssh_private_key" {
+  description = "The SSH private key for the Linux Jumpbox VM"
+  value       = module.bastion.jumpbox_private_key
+  sensitive   = true
+}
+
