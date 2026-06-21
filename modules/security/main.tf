@@ -83,3 +83,10 @@ resource "azurerm_role_assignment" "jumpbox_appgw_contributor" {
   principal_id         = var.jumpbox_principal_id
 }
 
+# Role Assignment: Jumpbox VM identity needs "Network Contributor" on the App Gateway subnet to allow backend pool join actions
+resource "azurerm_role_assignment" "jumpbox_subnet_join" {
+  scope                = var.app_gateway_subnet_id
+  role_definition_name = "Network Contributor"
+  principal_id         = var.jumpbox_principal_id
+}
+

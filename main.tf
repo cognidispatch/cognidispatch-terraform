@@ -87,4 +87,5 @@ module "security" {
   node_resource_group        = module.aks.node_resource_group
   kubelet_identity_object_id = module.aks.kubelet_identity_object_id
   jumpbox_principal_id       = module.bastion.jumpbox_principal_id
+  app_gateway_subnet_id      = module.network.snet_appgw_id
 }

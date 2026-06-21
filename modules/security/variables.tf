@@ -47,3 +47,8 @@ variable "jumpbox_principal_id" {
   description = "The principal ID of the jumpbox VM's system-assigned managed identity"
   type        = string
 }
+
+variable "app_gateway_subnet_id" {
+  description = "The resource ID of the subnet used by the Application Gateway"
+  type        = string
+}
