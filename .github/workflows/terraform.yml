@@ -1,28 +1,26 @@
 name: "Terraform Infrastructure Pipeline"
 
-# ──────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
 # Triggers:
-#   push to main        → plan + apply (deploys infra)
-#   pull_request        → plan only (preview, no apply)
-#   workflow_dispatch   → manual trigger (plan/apply/destroy)
-# ──────────────────────────────────────────────────────────────
+#   push to main           → validate → plan → apply
+#   pull_request to main   → validate → plan  (no apply)
+#   workflow_dispatch      → validate → plan → apply/destroy
+# ─────────────────────────────────────────────────────────────────
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "**.tf"
       - "modules/**"
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
       - "**.tf"
       - "modules/**"
   workflow_dispatch:
     inputs:
       action:
-        description: "Choose pipeline action"
+        description: "Action to perform"
         required: true
         default: "plan"
         type: choice
@@ -31,35 +29,40 @@ on:
           - apply
           - destroy
 
-# ──────────────────────────────────────────────────────────────
-# OIDC: Required for Azure Workload Identity Federation
-# No client secret needed — GitHub's JWT is trusted directly.
-# ──────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────
+# OIDC permissions — no client secret needed
+# ─────────────────────────────────────────────────────────────────
 permissions:
-  id-token: write       # Allows GitHub to mint an OIDC token
-  contents: read        # Allows checkout
-  pull-requests: write  # Allows posting plan results as PR comments
+  id-token: write       # Mint OIDC token for Azure auth
+  contents: read        # Checkout code
+  pull-requests: write  # Post plan comments on PRs
 
+# ─────────────────────────────────────────────────────────────────
+# Shared env — inherited by all jobs
+# ─────────────────────────────────────────────────────────────────
+env:
+  ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_USE_OIDC:        "true"
+  KV_NAME:             "cognidispatch-kv"
+  RG_NAME:             "test-rg"
+  TF_VERSION:          "~1.7"
+
+# ═════════════════════════════════════════════════════════════════
 jobs:
-  terraform:
-    name: "Terraform Plan & Apply"
+# ─────────────────────────────────────────────────────────────────
+# JOB 1 — Validate: fmt + init + validate
+# Runs on every trigger. No apply logic here.
+# ─────────────────────────────────────────────────────────────────
+  validate:
+    name: "🔍 Validate"
     runs-on: ubuntu-latest
 
-    # ── Authenticate via OIDC (no secrets!) ──────────────────
-    env:
-      ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      ARM_USE_OIDC: "true"   # AzureRM provider handles OIDC natively
-      KV_NAME: "cognidispatch-kv"
-      RG_NAME:  "test-rg"
-
     steps:
-      # ── 1. Checkout ───────────────────────────────────────────
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      # ── 2. Azure Login (for CLI — needed for KV firewall mgmt) ─
       - name: Azure Login (OIDC)
         uses: azure/login@v2
         with:
@@ -67,47 +70,88 @@ jobs:
           tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # ── 3. Whitelist Runner IP in Key Vault Firewall ──────────
-      # GitHub Actions runners use dynamic IPs that the KV firewall blocks.
-      # We fetch the runner's current public IP and temporarily allow it,
-      # then remove it in the cleanup step at the end.
       - name: Whitelist Runner IP in Key Vault Firewall
         id: kv_ip
         run: |
-          RUNNER_IP=$(curl -s https://api.ipify.org)
-          echo "Runner public IP: $RUNNER_IP"
-          echo "runner_ip=$RUNNER_IP" >> $GITHUB_OUTPUT
+          IP=$(curl -s https://api.ipify.org)
+          echo "runner_ip=$IP" >> $GITHUB_OUTPUT
           az keyvault network-rule add \
             --name $KV_NAME \
             --resource-group $RG_NAME \
-            --ip-address "$RUNNER_IP"
-          echo "✅ IP $RUNNER_IP added to KV firewall allowlist"
-          # Allow a few seconds for the firewall rule to propagate
+            --ip-address "$IP"
+          echo "✅ Whitelisted $IP — waiting for propagation..."
           sleep 10
 
-      # ── 4. Setup Terraform ────────────────────────────────────
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~1.7"
+          terraform_version: ${{ env.TF_VERSION }}
 
-      # ── 5. Format Check ───────────────────────────────────────
       - name: Terraform Format Check
         id: fmt
         run: terraform fmt -check -recursive
-        continue-on-error: true   # Report but don't block
+        continue-on-error: true   # warn but don't block
 
-      # ── 6. Init (backend: Azure Blob Storage) ─────────────────
       - name: Terraform Init
         id: init
         run: terraform init -input=false
 
-      # ── 7. Validate ───────────────────────────────────────────
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
 
-      # ── 8. Plan ───────────────────────────────────────────────
+      - name: Remove Runner IP from Key Vault Firewall
+        if: always()
+        run: |
+          az keyvault network-rule remove \
+            --name $KV_NAME \
+            --resource-group $RG_NAME \
+            --ip-address "${{ steps.kv_ip.outputs.runner_ip }}" || true
+          echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
+
+# ─────────────────────────────────────────────────────────────────
+# JOB 2 — Plan: terraform plan + upload artifact + PR comment
+# Skipped when workflow_dispatch action == 'destroy'
+# ─────────────────────────────────────────────────────────────────
+  plan:
+    name: "📋 Plan"
+    runs-on: ubuntu-latest
+    needs: [validate]
+    if: |
+      github.event_name != 'workflow_dispatch' ||
+      inputs.action != 'destroy'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Whitelist Runner IP in Key Vault Firewall
+        id: kv_ip
+        run: |
+          IP=$(curl -s https://api.ipify.org)
+          echo "runner_ip=$IP" >> $GITHUB_OUTPUT
+          az keyvault network-rule add \
+            --name $KV_NAME \
+            --resource-group $RG_NAME \
+            --ip-address "$IP"
+          echo "✅ Whitelisted $IP — waiting for propagation..."
+          sleep 10
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
       - name: Terraform Plan
         id: plan
         run: |
@@ -117,10 +161,15 @@ jobs:
             -var="smtp_user=${{ secrets.SMTP_USER }}" \
             -var="smtp_pass=${{ secrets.SMTP_PASS }}" \
             -out=tfplan 2>&1 | tee plan_output.txt
-        continue-on-error: false
 
-      # ── 9. Post Plan as PR Comment ────────────────────────────
-      - name: Post Plan to PR
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: tfplan
+          retention-days: 1
+
+      - name: Post Plan Summary to PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
@@ -135,9 +184,9 @@ jobs:
 
             const body = `## 🏗️ Terraform Plan Results
 
-            **Format:** \`${{ steps.fmt.outcome }}\` | **Init:** \`${{ steps.init.outcome }}\` | **Validate:** \`${{ steps.validate.outcome }}\` | **Plan:** \`${{ steps.plan.outcome }}\`
+            **Format:** \`${{ steps.fmt.outcome || 'skipped' }}\` | **Init:** \`success\` | **Plan:** \`${{ steps.plan.outcome }}\`
 
-            <details><summary>📋 Show Full Plan</summary>
+            <details><summary>📋 Show Full Plan Output</summary>
 
             \`\`\`hcl
             ${truncated}
@@ -145,25 +194,23 @@ jobs:
 
             </details>
 
-            > 🔒 Pushed by @${{ github.actor }} on \`${{ github.head_ref }}\`
-            > ⚠️ Merging this PR will trigger **terraform apply** on main.`;
+            > 🔒 Run by @${{ github.actor }} on \`${{ github.head_ref }}\`
+            > ⚠️ Merging this PR will trigger **terraform apply** automatically.`;
 
-            // Delete previous bot comments to keep PR clean
             const comments = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
             });
-            for (const comment of comments.data) {
-              if (comment.user.type === 'Bot' && comment.body.includes('Terraform Plan Results')) {
+            for (const c of comments.data) {
+              if (c.user.type === 'Bot' && c.body.includes('Terraform Plan Results')) {
                 await github.rest.issues.deleteComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  comment_id: comment.id,
+                  comment_id: c.id,
                 });
               }
             }
-
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -171,16 +218,119 @@ jobs:
               body,
             });
 
-      # ── 10. Apply (only on push to main OR manual apply) ──────
+      - name: Remove Runner IP from Key Vault Firewall
+        if: always()
+        run: |
+          az keyvault network-rule remove \
+            --name $KV_NAME \
+            --resource-group $RG_NAME \
+            --ip-address "${{ steps.kv_ip.outputs.runner_ip }}" || true
+          echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
+
+# ─────────────────────────────────────────────────────────────────
+# JOB 3 — Apply: download plan artifact + terraform apply
+# Only on: push to main  OR  workflow_dispatch action == 'apply'
+# ─────────────────────────────────────────────────────────────────
+  apply:
+    name: "🚀 Apply"
+    runs-on: ubuntu-latest
+    needs: [plan]
+    if: |
+      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Whitelist Runner IP in Key Vault Firewall
+        id: kv_ip
+        run: |
+          IP=$(curl -s https://api.ipify.org)
+          echo "runner_ip=$IP" >> $GITHUB_OUTPUT
+          az keyvault network-rule add \
+            --name $KV_NAME \
+            --resource-group $RG_NAME \
+            --ip-address "$IP"
+          echo "✅ Whitelisted $IP — waiting for propagation..."
+          sleep 10
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: .
+
       - name: Terraform Apply
-        if: |
-          (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-          (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
         run: terraform apply -auto-approve -input=false tfplan
 
-      # ── 11. Destroy (manual only) ─────────────────────────────
+      - name: Remove Runner IP from Key Vault Firewall
+        if: always()
+        run: |
+          az keyvault network-rule remove \
+            --name $KV_NAME \
+            --resource-group $RG_NAME \
+            --ip-address "${{ steps.kv_ip.outputs.runner_ip }}" || true
+          echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
+
+# ─────────────────────────────────────────────────────────────────
+# JOB 4 — Destroy: terraform destroy (manual only)
+# Only on: workflow_dispatch action == 'destroy'
+# Needs validate only — skips plan entirely
+# ─────────────────────────────────────────────────────────────────
+  destroy:
+    name: "💥 Destroy"
+    runs-on: ubuntu-latest
+    needs: [validate]
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Whitelist Runner IP in Key Vault Firewall
+        id: kv_ip
+        run: |
+          IP=$(curl -s https://api.ipify.org)
+          echo "runner_ip=$IP" >> $GITHUB_OUTPUT
+          az keyvault network-rule add \
+            --name $KV_NAME \
+            --resource-group $RG_NAME \
+            --ip-address "$IP"
+          echo "✅ Whitelisted $IP — waiting for propagation..."
+          sleep 10
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
       - name: Terraform Destroy
-        if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
         run: |
           terraform destroy \
             -auto-approve \
@@ -188,31 +338,11 @@ jobs:
             -var="smtp_user=${{ secrets.SMTP_USER }}" \
             -var="smtp_pass=${{ secrets.SMTP_PASS }}"
 
-      # ── 12. Cleanup — Remove Runner IP from KV Firewall ───────
-      # Always runs (even on failure) to ensure the IP is cleaned up.
       - name: Remove Runner IP from Key Vault Firewall
-        if: always() && steps.kv_ip.outputs.runner_ip != ''
+        if: always()
         run: |
-          RUNNER_IP="${{ steps.kv_ip.outputs.runner_ip }}"
           az keyvault network-rule remove \
             --name $KV_NAME \
             --resource-group $RG_NAME \
-            --ip-address "$RUNNER_IP" || true
-          echo "✅ IP $RUNNER_IP removed from KV firewall"
-
-      # ── 13. Job Summary ───────────────────────────────────────
-      - name: Pipeline Summary
-        if: always()
-        run: |
-          echo "## 🏗️ Terraform Pipeline Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Format Check | ${{ steps.fmt.outcome }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Init         | ${{ steps.init.outcome }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Validate     | ${{ steps.validate.outcome }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Plan         | ${{ steps.plan.outcome }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Trigger:** \`${{ github.event_name }}\` on \`${{ github.ref }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Actor:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Runner IP:** \`${{ steps.kv_ip.outputs.runner_ip }}\` (auto-removed from KV firewall)" >> $GITHUB_STEP_SUMMARY
+            --ip-address "${{ steps.kv_ip.outputs.runner_ip }}" || true
+          echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
