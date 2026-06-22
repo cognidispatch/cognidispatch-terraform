@@ -99,3 +99,25 @@ resource "azurerm_role_assignment" "jumpbox_subnet_join" {
   principal_id         = var.jumpbox_principal_id
 }
 
+# ── GitHub Actions Service Principal Role Assignments for ACR ──
+data "azuread_service_principal" "github_oidc" {
+  display_name = "github-terraform-oidc"
+}
+
+data "azuread_service_principal" "terraform_sp" {
+  display_name = "terraform-sp"
+}
+
+resource "azurerm_role_assignment" "github_oidc_acr_push" {
+  scope                = var.acr_id
+  role_definition_name = "AcrPush"
+  principal_id         = data.azuread_service_principal.github_oidc.object_id
+}
+
+resource "azurerm_role_assignment" "terraform_sp_acr_push" {
+  scope                = var.acr_id
+  role_definition_name = "AcrPush"
+  principal_id         = data.azuread_service_principal.terraform_sp.object_id
+}
+
+
