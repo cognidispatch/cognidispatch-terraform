@@ -30,13 +30,13 @@ resource "azurerm_kubernetes_cluster" "aks" {
   ]
 
   default_node_pool {
-    name                 = "agentpool"
-    vm_size              = "Standard_D2s_v5"
-    vnet_subnet_id       = var.subnet_id
-    os_disk_size_gb      = 128
-    auto_scaling_enabled = true
-    min_count            = 1
-    max_count            = 3
+    name                        = "agentpool"
+    vm_size                     = "Standard_D2s_v5"
+    vnet_subnet_id              = var.subnet_id
+    os_disk_size_gb             = 128
+    auto_scaling_enabled        = true
+    min_count                   = 1
+    max_count                   = 3
     temporary_name_for_rotation = "temppool"
   }
 
