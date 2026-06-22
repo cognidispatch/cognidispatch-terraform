@@ -111,15 +111,11 @@ jobs:
 
 # ─────────────────────────────────────────────────────────────────
 # JOB 2 — Plan: terraform plan + upload artifact + PR comment
-# Skipped when workflow_dispatch action == 'destroy'
 # ─────────────────────────────────────────────────────────────────
   plan:
     name: "📋 Plan"
     runs-on: ubuntu-latest
     needs: [validate]
-    if: |
-      github.event_name != 'workflow_dispatch' ||
-      inputs.action != 'destroy'
 
     steps:
       - name: Checkout
@@ -155,12 +151,24 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          terraform plan \
-            -no-color \
-            -input=false \
-            -var="smtp_user=${{ secrets.SMTP_USER }}" \
-            -var="smtp_pass=${{ secrets.SMTP_PASS }}" \
-            -out=tfplan 2>&1 | tee plan_output.txt
+          if [[ "${{ github.event.name }}" == "workflow_dispatch" && "${{ inputs.action }}" == "destroy" ]]; then
+            echo "Generating DESTROY plan..."
+            terraform plan \
+              -destroy \
+              -no-color \
+              -input=false \
+              -var="smtp_user=${{ secrets.SMTP_USER }}" \
+              -var="smtp_pass=${{ secrets.SMTP_PASS }}" \
+              -out=tfplan 2>&1 | tee plan_output.txt
+          else
+            echo "Generating APPLY plan..."
+            terraform plan \
+              -no-color \
+              -input=false \
+              -var="smtp_user=${{ secrets.SMTP_USER }}" \
+              -var="smtp_pass=${{ secrets.SMTP_PASS }}" \
+              -out=tfplan 2>&1 | tee plan_output.txt
+          fi
 
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v4
@@ -235,6 +243,7 @@ jobs:
     name: "🚀 Apply"
     runs-on: ubuntu-latest
     needs: [plan]
+    environment: production
     if: |
       (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
       (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
@@ -289,14 +298,14 @@ jobs:
           echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
 
 # ─────────────────────────────────────────────────────────────────
-# JOB 4 — Destroy: terraform destroy (manual only)
+# JOB 4 — Destroy: download plan artifact + terraform apply (destroy plan)
 # Only on: workflow_dispatch action == 'destroy'
-# Needs validate only — skips plan entirely
 # ─────────────────────────────────────────────────────────────────
   destroy:
     name: "💥 Destroy"
     runs-on: ubuntu-latest
-    needs: [validate]
+    needs: [plan]
+    environment: production
     if: github.event_name == 'workflow_dispatch' && inputs.action == 'destroy'
 
     steps:
@@ -330,13 +339,14 @@ jobs:
       - name: Terraform Init
         run: terraform init -input=false
 
-      - name: Terraform Destroy
-        run: |
-          terraform destroy \
-            -auto-approve \
-            -input=false \
-            -var="smtp_user=${{ secrets.SMTP_USER }}" \
-            -var="smtp_pass=${{ secrets.SMTP_PASS }}"
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: .
+
+      - name: Terraform Destroy (Apply Destroy Plan)
+        run: terraform apply -auto-approve -input=false tfplan
 
       - name: Remove Runner IP from Key Vault Firewall
         if: always()
