@@ -1,11 +1,6 @@
 name: "Terraform Infrastructure Pipeline"
 
-# ─────────────────────────────────────────────────────────────────
-# Triggers:
-#   push to main           → validate → plan → apply
-#   pull_request to main   → validate → plan  (no apply)
-#   workflow_dispatch      → validate → plan → apply/destroy
-# ─────────────────────────────────────────────────────────────────
+
 on:
   push:
     branches: [main]
@@ -29,17 +24,12 @@ on:
           - apply
           - destroy
 
-# ─────────────────────────────────────────────────────────────────
-# OIDC permissions — no client secret needed
-# ─────────────────────────────────────────────────────────────────
+
 permissions:
   id-token: write       # Mint OIDC token for Azure auth
   contents: read        # Checkout code
   pull-requests: write  # Post plan comments on PRs
 
-# ─────────────────────────────────────────────────────────────────
-# Shared env — inherited by all jobs
-# ─────────────────────────────────────────────────────────────────
 env:
   ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
   ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
@@ -62,6 +52,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Run Checkov Security Scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: .
+          framework: terraform
+          soft_fail: true
 
       - name: Azure Login (OIDC)
         uses: azure/login@v2
