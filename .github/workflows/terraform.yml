@@ -75,12 +75,16 @@ jobs:
         run: |
           IP=$(curl -s https://api.ipify.org)
           echo "runner_ip=$IP" >> $GITHUB_OUTPUT
-          az keyvault network-rule add \
-            --name $KV_NAME \
-            --resource-group $RG_NAME \
-            --ip-address "$IP"
-          echo "✅ Whitelisted $IP — waiting for propagation..."
-          sleep 10
+          if az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" &>/dev/null; then
+            az keyvault network-rule add \
+              --name $KV_NAME \
+              --resource-group $RG_NAME \
+              --ip-address "$IP"
+            echo "✅ Whitelisted $IP — waiting for propagation..."
+            sleep 10
+          else
+            echo "⚠️ Key Vault $KV_NAME not found, skipping whitelisting."
+          fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -101,11 +105,15 @@ jobs:
       - name: Remove Runner IP from Key Vault Firewall
         if: always()
         run: |
-          az keyvault network-rule remove \
-            --name $KV_NAME \
-            --resource-group $RG_NAME \
-            --ip-address "${{ steps.kv_ip.outputs.runner_ip }}" || true
-          echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
+          if [ -n "${{ steps.kv_ip.outputs.runner_ip }}" ] && az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" &>/dev/null; then
+            az keyvault network-rule remove \
+              --name $KV_NAME \
+              --resource-group $RG_NAME \
+              --ip-address "${{ steps.kv_ip.outputs.runner_ip }}" || true
+            echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
+          else
+            echo "🧹 Skipping firewall rule removal (Key Vault or IP not set)."
+          fi
 
 # ─────────────────────────────────────────────────────────────────
 # JOB 2 — Plan: terraform plan + upload artifact + PR comment
@@ -131,12 +139,16 @@ jobs:
         run: |
           IP=$(curl -s https://api.ipify.org)
           echo "runner_ip=$IP" >> $GITHUB_OUTPUT
-          az keyvault network-rule add \
-            --name $KV_NAME \
-            --resource-group $RG_NAME \
-            --ip-address "$IP"
-          echo "✅ Whitelisted $IP — waiting for propagation..."
-          sleep 10
+          if az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" &>/dev/null; then
+            az keyvault network-rule add \
+              --name $KV_NAME \
+              --resource-group $RG_NAME \
+              --ip-address "$IP"
+            echo "✅ Whitelisted $IP — waiting for propagation..."
+            sleep 10
+          else
+            echo "⚠️ Key Vault $KV_NAME not found, skipping whitelisting."
+          fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -246,11 +258,15 @@ jobs:
       - name: Remove Runner IP from Key Vault Firewall
         if: always()
         run: |
-          az keyvault network-rule remove \
-            --name $KV_NAME \
-            --resource-group $RG_NAME \
-            --ip-address "${{ steps.kv_ip.outputs.runner_ip }}" || true
-          echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
+          if [ -n "${{ steps.kv_ip.outputs.runner_ip }}" ] && az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" &>/dev/null; then
+            az keyvault network-rule remove \
+              --name $KV_NAME \
+              --resource-group $RG_NAME \
+              --ip-address "${{ steps.kv_ip.outputs.runner_ip }}" || true
+            echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
+          else
+            echo "🧹 Skipping firewall rule removal (Key Vault or IP not set)."
+          fi
 
 # ─────────────────────────────────────────────────────────────────
 # JOB 3 — Apply: download plan artifact + terraform apply
@@ -281,12 +297,16 @@ jobs:
         run: |
           IP=$(curl -s https://api.ipify.org)
           echo "runner_ip=$IP" >> $GITHUB_OUTPUT
-          az keyvault network-rule add \
-            --name $KV_NAME \
-            --resource-group $RG_NAME \
-            --ip-address "$IP"
-          echo "✅ Whitelisted $IP — waiting for propagation..."
-          sleep 10
+          if az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" &>/dev/null; then
+            az keyvault network-rule add \
+              --name $KV_NAME \
+              --resource-group $RG_NAME \
+              --ip-address "$IP"
+            echo "✅ Whitelisted $IP — waiting for propagation..."
+            sleep 10
+          else
+            echo "⚠️ Key Vault $KV_NAME not found, skipping whitelisting."
+          fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -308,11 +328,15 @@ jobs:
       - name: Remove Runner IP from Key Vault Firewall
         if: always()
         run: |
-          az keyvault network-rule remove \
-            --name $KV_NAME \
-            --resource-group $RG_NAME \
-            --ip-address "${{ steps.kv_ip.outputs.runner_ip }}" || true
-          echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
+          if [ -n "${{ steps.kv_ip.outputs.runner_ip }}" ] && az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" &>/dev/null; then
+            az keyvault network-rule remove \
+              --name $KV_NAME \
+              --resource-group $RG_NAME \
+              --ip-address "${{ steps.kv_ip.outputs.runner_ip }}" || true
+            echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
+          else
+            echo "🧹 Skipping firewall rule removal (Key Vault or IP not set)."
+          fi
 
 # ─────────────────────────────────────────────────────────────────
 # JOB 4 — Destroy: download plan artifact + terraform apply (destroy plan)
@@ -341,12 +365,16 @@ jobs:
         run: |
           IP=$(curl -s https://api.ipify.org)
           echo "runner_ip=$IP" >> $GITHUB_OUTPUT
-          az keyvault network-rule add \
-            --name $KV_NAME \
-            --resource-group $RG_NAME \
-            --ip-address "$IP"
-          echo "✅ Whitelisted $IP — waiting for propagation..."
-          sleep 10
+          if az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" &>/dev/null; then
+            az keyvault network-rule add \
+              --name $KV_NAME \
+              --resource-group $RG_NAME \
+              --ip-address "$IP"
+            echo "✅ Whitelisted $IP — waiting for propagation..."
+            sleep 10
+          else
+            echo "⚠️ Key Vault $KV_NAME not found, skipping whitelisting."
+          fi
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -368,8 +396,12 @@ jobs:
       - name: Remove Runner IP from Key Vault Firewall
         if: always()
         run: |
-          az keyvault network-rule remove \
-            --name $KV_NAME \
-            --resource-group $RG_NAME \
-            --ip-address "${{ steps.kv_ip.outputs.runner_ip }}" || true
-          echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
+          if [ -n "${{ steps.kv_ip.outputs.runner_ip }}" ] && az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" &>/dev/null; then
+            az keyvault network-rule remove \
+              --name $KV_NAME \
+              --resource-group $RG_NAME \
+              --ip-address "${{ steps.kv_ip.outputs.runner_ip }}" || true
+            echo "🧹 Removed ${{ steps.kv_ip.outputs.runner_ip }} from KV firewall"
+          else
+            echo "🧹 Skipping firewall rule removal (Key Vault or IP not set)."
+          fi
