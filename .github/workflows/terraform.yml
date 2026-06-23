@@ -149,7 +149,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         run: |
-          if [[ "${{ github.event.name }}" == "workflow_dispatch" && "${{ inputs.action }}" == "destroy" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.action }}" == "destroy" ]]; then
             echo "Generating DESTROY plan..."
             terraform plan \
               -destroy \
