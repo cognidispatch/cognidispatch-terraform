@@ -106,27 +106,35 @@ resource "random_password" "jwt_secret" {
 }
 
 resource "azurerm_key_vault_secret" "mongodb_uri" {
-  name         = "MONGODB-URI"
-  value        = replace(module.data.mongodb_uri, "/?", "/cognidispatch?")
-  key_vault_id = module.data.key_vault_id
+  name            = "MONGODB-URI"
+  value           = replace(module.data.mongodb_uri, "/?", "/cognidispatch?")
+  key_vault_id    = module.data.key_vault_id
+  content_type    = "connection-string"
+  expiration_date = "2027-12-31T23:59:59Z"
 }
 
 resource "azurerm_key_vault_secret" "azure_openai_key" {
-  name         = "AZURE-OPENAI-KEY"
-  value        = module.cognitive.openai_key
-  key_vault_id = module.data.key_vault_id
+  name            = "AZURE-OPENAI-KEY"
+  value           = module.cognitive.openai_key
+  key_vault_id    = module.data.key_vault_id
+  content_type    = "api-key"
+  expiration_date = "2027-12-31T23:59:59Z"
 }
 
 resource "azurerm_key_vault_secret" "azure_speech_key" {
-  name         = "AZURE-SPEECH-KEY"
-  value        = module.cognitive.speech_key
-  key_vault_id = module.data.key_vault_id
+  name            = "AZURE-SPEECH-KEY"
+  value           = module.cognitive.speech_key
+  key_vault_id    = module.data.key_vault_id
+  content_type    = "api-key"
+  expiration_date = "2027-12-31T23:59:59Z"
 }
 
 resource "azurerm_key_vault_secret" "jwt_secret" {
-  name         = "JWT-SECRET"
-  value        = random_password.jwt_secret.result
-  key_vault_id = module.data.key_vault_id
+  name            = "JWT-SECRET"
+  value           = random_password.jwt_secret.result
+  key_vault_id    = module.data.key_vault_id
+  content_type    = "text/plain"
+  expiration_date = "2027-12-31T23:59:59Z"
 }
 
 # ── Service Bus ────────────────────────────────────────────────────────────────
@@ -138,9 +146,11 @@ module "servicebus" {
 
 # Store Service Bus connection string securely in Key Vault
 resource "azurerm_key_vault_secret" "servicebus_connection" {
-  name         = "SERVICEBUS-CONNECTION"
-  value        = module.servicebus.servicebus_connection_string
-  key_vault_id = module.data.key_vault_id
+  name            = "SERVICEBUS-CONNECTION"
+  value           = module.servicebus.servicebus_connection_string
+  key_vault_id    = module.data.key_vault_id
+  content_type    = "connection-string"
+  expiration_date = "2027-12-31T23:59:59Z"
 }
 
 # ── Email (SMTP via Gmail App Password or any SMTP provider) ───────────────────
@@ -148,13 +158,17 @@ resource "azurerm_key_vault_secret" "servicebus_connection" {
 # To set: az keyvault secret set --vault-name cognidispatch-kv --name SMTP-USER --value "you@gmail.com"
 #         az keyvault secret set --vault-name cognidispatch-kv --name SMTP-PASS --value "your-app-password"
 resource "azurerm_key_vault_secret" "smtp_user" {
-  name         = "SMTP-USER"
-  value        = var.smtp_user
-  key_vault_id = module.data.key_vault_id
+  name            = "SMTP-USER"
+  value           = var.smtp_user
+  key_vault_id    = module.data.key_vault_id
+  content_type    = "text/plain"
+  expiration_date = "2027-12-31T23:59:59Z"
 }
 
 resource "azurerm_key_vault_secret" "smtp_pass" {
-  name         = "SMTP-PASS"
-  value        = var.smtp_pass
-  key_vault_id = module.data.key_vault_id
+  name            = "SMTP-PASS"
+  value           = var.smtp_pass
+  key_vault_id    = module.data.key_vault_id
+  content_type    = "text/plain"
+  expiration_date = "2027-12-31T23:59:59Z"
 }

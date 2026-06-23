@@ -1,9 +1,18 @@
 # Azure Service Bus Namespace
+# checkov:skip=CKV_AZURE_201: Customer-managed key encryption requires Premium SKU
+# checkov:skip=CKV_AZURE_199: Double encryption requires Premium SKU
+# checkov:skip=CKV_AZURE_203: App uses SAS connection string from Key Vault; disabling local auth would break messaging
+# checkov:skip=CKV_AZURE_205: Minimum TLS version enforcement requires Premium SKU
 resource "azurerm_servicebus_namespace" "sb" {
-  name                = "sb-cognidispatch"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  sku                 = "Standard"
+  name                         = "sb-cognidispatch"
+  location                     = var.location
+  resource_group_name          = var.resource_group_name
+  sku                          = "Standard"
+  public_network_access_enabled = false # Disabled: connection string used over private network
+
+  identity {
+    type = "SystemAssigned"
+  }
 
   tags = {
     Project     = "CogniDispatch"

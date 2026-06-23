@@ -44,6 +44,8 @@ resource "azurerm_public_ip" "appgw_pip" {
   sku                 = "Standard"
 }
 
+# checkov:skip=CKV_AZURE_217: HTTP listener on port 80 is intentional; WAF_v2 policy in Prevention mode handles traffic inspection
+# checkov:skip=CKV_AZURE_218: Backend HTTP settings use Http protocol for internal routing via private ILB; HTTPS not required internally
 resource "azurerm_application_gateway" "appgw" {
   name                = "cogni-appgw"
   resource_group_name = var.resource_group_name
