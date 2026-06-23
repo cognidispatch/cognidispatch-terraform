@@ -42,3 +42,5 @@ variable "smtp_pass" {
   sensitive   = true
   default     = ""
 }
+
+# Trigger comment for Infracost cost analysis test pipeline run.
