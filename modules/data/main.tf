@@ -9,6 +9,8 @@ resource "azurerm_cosmosdb_account" "cosmos" {
   kind                 = "MongoDB"
   mongo_server_version = "4.2"
 
+  automatic_failover_enabled = true
+
   consistency_policy {
     consistency_level       = "BoundedStaleness"
     max_interval_in_seconds = 300
@@ -18,6 +20,11 @@ resource "azurerm_cosmosdb_account" "cosmos" {
   geo_location {
     location          = "eastus2"
     failover_priority = 0
+  }
+
+  geo_location {
+    location          = "centralindia"
+    failover_priority = 1
   }
 
   capabilities {
