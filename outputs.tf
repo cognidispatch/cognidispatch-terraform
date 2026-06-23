@@ -59,3 +59,9 @@ output "key_vault_name" {
   value       = module.data.key_vault_name
 }
 
+output "grafana_endpoint" {
+  description = "The secure public endpoint of Azure Managed Grafana"
+  value       = module.monitoring.grafana_endpoint
+}
+
+

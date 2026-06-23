@@ -59,6 +59,9 @@ resource "azurerm_kubernetes_cluster" "aks" {
     secret_rotation_enabled = true
   }
 
+  monitor_metrics {
+  }
+
   tags = {
     Environment = "Production"
     Project     = "CogniDispatch"

@@ -18,12 +18,21 @@ module "network" {
 
 # AKS Module: Private AKS cluster
 module "aks" {
-  source              = "./modules/aks"
+  source                     = "./modules/aks"
+  resource_group_name        = azurerm_resource_group.rg.name
+  location                   = azurerm_resource_group.rg.location
+  subnet_id                  = module.network.snet_aks_id
+  private_dns_zone_id        = module.network.dns_aks_id
+}
+
+# Monitoring Module: Azure Managed Prometheus and Azure Managed Grafana
+module "monitoring" {
+  source              = "./modules/monitoring"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
-  subnet_id           = module.network.snet_aks_id
-  private_dns_zone_id = module.network.dns_aks_id
+  aks_cluster_id      = module.aks.cluster_id
 }
+
 
 # Application Gateway Module: Load balancer and routing ingress
 module "app_gateway" {

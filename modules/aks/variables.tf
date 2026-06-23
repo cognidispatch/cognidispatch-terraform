@@ -17,3 +17,4 @@ variable "private_dns_zone_id" {
   description = "The ID of the Private DNS Zone for the private AKS API server"
   type        = string
 }
+
