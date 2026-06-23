@@ -13,13 +13,13 @@ resource "azurerm_monitor_workspace" "workspace" {
 
 # 2. Azure Managed Grafana
 resource "azurerm_dashboard_grafana" "grafana" {
-  name                              = "grafana-cognidispatch"
-  resource_group_name               = var.resource_group_name
-  location                          = var.location
-  api_key_enabled                   = true
-  public_network_access_enabled     = true
-  grafana_major_version             = "12"
-  
+  name                          = "grafana-cognidispatch"
+  resource_group_name           = var.resource_group_name
+  location                      = var.location
+  api_key_enabled               = true
+  public_network_access_enabled = true
+  grafana_major_version         = "12"
+
   azure_monitor_workspace_integrations {
     resource_id = azurerm_monitor_workspace.workspace.id
   }
