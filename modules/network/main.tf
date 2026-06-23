@@ -78,8 +78,8 @@ resource "azurerm_subnet" "snet_mgmt" {
 # Network Security Groups
 
 # NSG for Application Gateway Subnet
-# checkov:skip=CKV_AZURE_160: Port 80 inbound is required for Azure Application Gateway operation and HTTP-to-HTTPS redirect flow
 resource "azurerm_network_security_group" "nsg_appgw" {
+  #checkov:skip=CKV_AZURE_160: Port 80 inbound is required for Azure Application Gateway operation and HTTP-to-HTTPS redirect flow
   name                = "nsg-snet-appgw"
   location            = var.location
   resource_group_name = var.resource_group_name

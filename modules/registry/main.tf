@@ -1,11 +1,11 @@
 # Azure Container Registry (Premium SKU is required for Private Endpoint)
-# checkov:skip=CKV_AZURE_237: Dedicated data endpoints not required for this workload
-# checkov:skip=CKV_AZURE_166: Image quarantine is an enterprise workflow not in use here
-# checkov:skip=CKV_AZURE_164: Content trust (signed images) not configured for this project
-# checkov:skip=CKV_AZURE_167: Untagged manifest cleanup policy managed outside of Terraform
-# checkov:skip=CKV_AZURE_165: Geo-replication not required; single-region deployment
-# checkov:skip=CKV_AZURE_233: Zone redundancy not required for this workload tier
 resource "azurerm_container_registry" "acr" {
+  #checkov:skip=CKV_AZURE_237: Dedicated data endpoints not required for this workload
+  #checkov:skip=CKV_AZURE_166: Image quarantine is an enterprise workflow not in use here
+  #checkov:skip=CKV_AZURE_164: Content trust (signed images) not configured for this project
+  #checkov:skip=CKV_AZURE_167: Untagged manifest cleanup policy managed outside of Terraform
+  #checkov:skip=CKV_AZURE_165: Geo-replication not required; single-region deployment
+  #checkov:skip=CKV_AZURE_233: Zone redundancy not required for this workload tier
   name                          = "cogniregistry"
   resource_group_name           = var.resource_group_name
   location                      = var.location

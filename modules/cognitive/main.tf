@@ -1,8 +1,8 @@
 # Azure OpenAI Account
-# checkov:skip=CKV_AZURE_236: App uses API key from Key Vault - disabling local auth would break AI service
-# checkov:skip=CKV2_AZURE_22: Customer-managed key encryption not required for this workload tier
-# checkov:skip=CKV_AZURE_247: Cognitive DLP is an enterprise Prisma Cloud feature, not applicable here
 resource "azurerm_cognitive_account" "openai" {
+  #checkov:skip=CKV_AZURE_236: App uses API key from Key Vault - disabling local auth would break AI service
+  #checkov:skip=CKV2_AZURE_22: Customer-managed key encryption not required for this workload tier
+  #checkov:skip=CKV_AZURE_247: Cognitive DLP is an enterprise Prisma Cloud feature, not applicable here
   name                          = "cogni-openai"
   location                      = "eastus" # Match active location of OpenAI
   resource_group_name           = var.resource_group_name
@@ -60,9 +60,9 @@ resource "azurerm_private_endpoint" "pe_openai" {
 
 
 # Azure Speech Services Account
-# checkov:skip=CKV_AZURE_236: App uses API key from Key Vault - disabling local auth would break speech service
-# checkov:skip=CKV2_AZURE_22: Customer-managed key encryption not required for this workload tier
 resource "azurerm_cognitive_account" "speech" {
+  #checkov:skip=CKV_AZURE_236: App uses API key from Key Vault - disabling local auth would break speech service
+  #checkov:skip=CKV2_AZURE_22: Customer-managed key encryption not required for this workload tier
   name                          = "cogni-speech"
   location                      = "eastus" # Match active location of Speech service
   resource_group_name           = var.resource_group_name

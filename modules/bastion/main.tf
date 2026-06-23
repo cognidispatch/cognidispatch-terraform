@@ -52,10 +52,10 @@ resource "azurerm_network_interface" "jumpbox_nic" {
 }
 
 # Linux Jumpbox VM for cluster management
-# checkov:skip=CKV_AZURE_50: No VM extensions are installed on this jumpbox; false positive triggered by resource definition
-# checkov:skip=CKV_AZURE_149: Password auth enabled as secondary fallback for Azure Bastion SSH tunnel; SSH key is primary auth method
-# checkov:skip=CKV_AZURE_1: SSH key IS configured in admin_ssh_key block; password is a secondary fallback for Bastion native sessions
 resource "azurerm_linux_virtual_machine" "jumpbox" {
+  #checkov:skip=CKV_AZURE_50: No VM extensions are installed on this jumpbox; false positive triggered by resource definition
+  #checkov:skip=CKV_AZURE_149: Password auth enabled as secondary fallback for Azure Bastion SSH tunnel; SSH key is primary auth method
+  #checkov:skip=CKV_AZURE_1: SSH key IS configured in admin_ssh_key block; password is a secondary fallback for Bastion native sessions
   name                            = "cogni-jumpbox"
   resource_group_name             = var.resource_group_name
   location                        = var.location

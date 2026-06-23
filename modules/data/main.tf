@@ -1,8 +1,8 @@
 data "azurerm_client_config" "current" {}
 
-# checkov:skip=CKV_AZURE_100: Customer-managed key encryption for CosmosDB requires Key Vault key integration - not configured
-# checkov:skip=CKV_AZURE_132: Restricting management plane changes would prevent Terraform from managing CosmosDB
 resource "azurerm_cosmosdb_account" "cosmos" {
+  #checkov:skip=CKV_AZURE_100: Customer-managed key encryption for CosmosDB requires Key Vault key integration - not configured
+  #checkov:skip=CKV_AZURE_132: Restricting management plane changes would prevent Terraform from managing CosmosDB
   name                 = "cosmos-cognidispatch-db"
   location             = "eastus2" # Match active location of CosmosDB
   resource_group_name  = var.resource_group_name
@@ -66,9 +66,9 @@ data "http" "client_ip" {
   url = "https://api.ipify.org"
 }
 
-# checkov:skip=CKV_AZURE_110: Purge protection is intentionally disabled - enabling is irreversible and blocks terraform destroy for 90 days
-# checkov:skip=CKV_AZURE_42: Soft-delete is enabled (90 days retention); purge protection skipped for operational flexibility
 resource "azurerm_key_vault" "kv" {
+  #checkov:skip=CKV_AZURE_110: Purge protection is intentionally disabled - enabling is irreversible and blocks terraform destroy for 90 days
+  #checkov:skip=CKV_AZURE_42: Soft-delete is enabled (90 days retention); purge protection skipped for operational flexibility
   name                       = "cognidispatch-kv"
   location                   = var.location
   resource_group_name        = var.resource_group_name
