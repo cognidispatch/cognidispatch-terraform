@@ -43,4 +43,4 @@ variable "smtp_pass" {
   default     = ""
 }
 
-# Trigger comment for Infracost cost analysis test pipeline run.
+# Trigger comment for Infracost cost analysis test pipeline run v2.
