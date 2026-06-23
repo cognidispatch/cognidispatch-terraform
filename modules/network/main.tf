@@ -47,6 +47,7 @@ resource "azurerm_subnet" "snet_appgw" {
 }
 
 resource "azurerm_subnet" "snet_bastion" {
+  #checkov:skip=CKV2_AZURE_31:Azure Bastion subnet manages its own NSG rules natively/outside standard VNET NSG patterns
   name                 = "AzureBastionSubnet" # Must be exactly this name
   resource_group_name  = var.resource_group_name
   virtual_network_name = azurerm_virtual_network.hub_vnet.name

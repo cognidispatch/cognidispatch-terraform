@@ -32,7 +32,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   dns_prefix                = "cogniaks"
   private_cluster_enabled   = true
   private_dns_zone_id       = var.private_dns_zone_id
-  automatic_channel_upgrade = "patch" # Auto-apply security patches to nodes
+  automatic_upgrade_channel = "patch" # Auto-apply security patches to nodes
   azure_policy_enabled      = true    # Enable Azure Policy add-on for governance
 
   depends_on = [
