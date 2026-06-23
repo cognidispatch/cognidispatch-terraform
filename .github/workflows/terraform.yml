@@ -177,6 +177,25 @@ jobs:
           path: tfplan
           retention-days: 1
 
+      - name: Export plan to JSON for Infracost
+        run: terraform show -json tfplan > tfplan.json
+        continue-on-error: true
+
+      - name: Setup Infracost
+        uses: infracost/actions/setup@v2
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+        continue-on-error: true
+
+      - name: Generate Infracost cost estimate
+        run: |
+          if [ -f tfplan.json ] && command -v infracost &> /dev/null; then
+            infracost breakdown --path tfplan.json
+          else
+            echo "⚠️ Skipping Infracost cost estimate: plan JSON missing or Infracost CLI not installed."
+          fi
+        continue-on-error: true
+
       - name: Post Plan Summary to PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
