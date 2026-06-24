@@ -1,6 +1,5 @@
 name: "Terraform Infrastructure Pipeline"
 
-
 on:
   push:
     branches: [main]
@@ -24,7 +23,6 @@ on:
           - apply
           - destroy
 
-
 permissions:
   id-token: write       # Mint OIDC token for Azure auth
   contents: read        # Checkout code
@@ -39,12 +37,7 @@ env:
   RG_NAME:             "test-rg"
   TF_VERSION:          "~1.7"
 
-# ═════════════════════════════════════════════════════════════════
 jobs:
-# ─────────────────────────────────────────────────────────────────
-# JOB 1 — Validate: fmt + init + validate
-# Runs on every trigger. No apply logic here.
-# ─────────────────────────────────────────────────────────────────
   validate:
     name: "🔍 Validate"
     runs-on: ubuntu-latest
@@ -112,9 +105,6 @@ jobs:
             echo "🧹 Skipping firewall rule removal (Key Vault or IP not set)."
           fi
 
-# ─────────────────────────────────────────────────────────────────
-# JOB 2 — Plan: terraform plan + upload artifact + PR comment
-# ─────────────────────────────────────────────────────────────────
   plan:
     name: "📋 Plan"
     runs-on: ubuntu-latest
@@ -265,10 +255,6 @@ jobs:
             echo "🧹 Skipping firewall rule removal (Key Vault or IP not set)."
           fi
 
-# ─────────────────────────────────────────────────────────────────
-# JOB 3 — Apply: download plan artifact + terraform apply
-# Only on: push to main  OR  workflow_dispatch action == 'apply'
-# ─────────────────────────────────────────────────────────────────
   apply:
     name: "🚀 Apply"
     runs-on: ubuntu-latest
@@ -335,10 +321,6 @@ jobs:
             echo "🧹 Skipping firewall rule removal (Key Vault or IP not set)."
           fi
 
-# ─────────────────────────────────────────────────────────────────
-# JOB 4 — Destroy: download plan artifact + terraform apply (destroy plan)
-# Only on: workflow_dispatch action == 'destroy'
-# ─────────────────────────────────────────────────────────────────
   destroy:
     name: "💥 Destroy"
     runs-on: ubuntu-latest
