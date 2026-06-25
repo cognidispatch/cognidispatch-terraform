@@ -3,6 +3,14 @@ output "key_vault_id" {
   value       = azurerm_key_vault.kv.id
 }
 
+# kv_ready chains through the null_resource that whitelists the runner IP.
+# Any resource that depends on this output is guaranteed to run AFTER the
+# IP whitelist + 15s propagation sleep, preventing 403 ForbiddenByFirewall.
+output "kv_ready" {
+  description = "Signals that the Key Vault firewall is ready to accept connections from the current runner"
+  value       = null_resource.kv_whitelist_runner_ip.id
+}
+
 output "key_vault_name" {
   description = "The name of the Azure Key Vault"
   value       = azurerm_key_vault.kv.name
