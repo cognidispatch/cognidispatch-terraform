@@ -105,21 +105,19 @@ resource "azurerm_key_vault" "kv" {
       network_acls,
     ]
   }
+}
 
-  # On first-run: the KV doesn't exist at the start of the Apply job,
-  # so the workflow's pre-apply whitelist step is skipped.
-  # This provisioner adds the current caller's IP immediately after KV creation
-  # so the subsequent secret writes in the same apply can succeed.
+# On first-run the KV doesn't exist when the workflow's pre-apply whitelist
+# step runs, so the Apply runner's IP is never added. This null_resource
+# fires immediately after the KV is created and whitelists the current runner,
+# ensuring secret writes in the same apply succeed.
+resource "null_resource" "kv_whitelist_runner_ip" {
+  triggers = {
+    kv_id = azurerm_key_vault.kv.id
+  }
+
   provisioner "local-exec" {
-    command = <<-EOT
-      RUNNER_IP=$(curl -s https://api.ipify.org)
-      echo "Adding runner IP $RUNNER_IP to KV firewall post-create..."
-      az keyvault network-rule add \
-        --name "${self.name}" \
-        --resource-group "${self.resource_group_name}" \
-        --ip-address "$RUNNER_IP" || true
-      sleep 15
-    EOT
+    command     = "RUNNER_IP=$(curl -s https://api.ipify.org) && echo \"Whitelisting $RUNNER_IP\" && az keyvault network-rule add --name ${azurerm_key_vault.kv.name} --resource-group ${azurerm_key_vault.kv.resource_group_name} --ip-address \"$RUNNER_IP\" || true && sleep 15"
     interpreter = ["bash", "-c"]
   }
 }
