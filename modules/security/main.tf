@@ -120,4 +120,65 @@ resource "azurerm_role_assignment" "terraform_sp_acr_push" {
   principal_id         = data.azuread_service_principal.terraform_sp.object_id
 }
 
+# ── GitHub Actions Service Principal Federated Credentials for Microservices ──
+data "azuread_application" "github_oidc" {
+  display_name = "github-terraform-oidc"
+}
+
+locals {
+  github_org = "cognidispatch"
+  microservice_repos = [
+    "cognidispatch-admin-service",
+    "cognidispatch-ai-service",
+    "cognidispatch-auth-service",
+    "cognidispatch-dispatch-service",
+    "cognidispatch-frontend",
+    "cognidispatch-payment-service",
+    "cognidispatch-vendor-service",
+  ]
+  environments = ["dev", "production"]
+
+  # Generate combination of repos and environments for OIDC trust
+  github_fed_creds = merge(
+    # Microservice credentials
+    {
+      for item in setproduct(local.microservice_repos, local.environments) :
+      "${item[0]}-${item[1]}" => {
+        repo        = item[0]
+        subject     = "repo:${local.github_org}/${item[0]}:environment:${item[1]}"
+        description = "GitHub OIDC for ${item[0]} in ${item[1]} environment"
+      }
+    },
+    # Terraform repository credentials (preserve existing ones to avoid drift/recreation since they are matched by name)
+    {
+      "terraform-production-branch" = {
+        repo        = "cognidispatch-terraform"
+        subject     = "repo:${local.github_org}/cognidispatch-terraform:ref:refs/heads/production"
+        description = "Trust for Terraform deployments from the production branch."
+      },
+      "terraform-production-env" = {
+        repo        = "cognidispatch-terraform"
+        subject     = "repo:${local.github_org}/cognidispatch-terraform:environment:production"
+        description = "Trust for Terraform deployments in the production environment."
+      },
+      "terraform-main-trust" = {
+        repo        = "cognidispatch-terraform"
+        subject     = "repo:${local.github_org}/cognidispatch-terraform:ref:refs/heads/main"
+        description = "Trust for Terraform deployments from the main branch."
+      }
+    }
+  )
+}
+
+resource "azuread_application_federated_identity_credential" "github_repo_cred" {
+  for_each              = local.github_fed_creds
+  application_id        = data.azuread_application.github_oidc.id
+  display_name          = each.key
+  description           = each.value.description
+  audiences             = ["api://AzureADTokenExchange"]
+  issuer                = "https://token.actions.githubusercontent.com"
+  subject               = each.value.subject
+}
+
+
 
