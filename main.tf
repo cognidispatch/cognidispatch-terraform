@@ -33,7 +33,6 @@ module "monitoring" {
   aks_cluster_id      = module.aks.cluster_id
 }
 
-
 # Application Gateway Module: Load balancer and routing ingress
 module "app_gateway" {
   source              = "./modules/app_gateway"
@@ -99,7 +98,10 @@ module "security" {
   app_gateway_subnet_id      = module.network.snet_appgw_id
 }
 
-# Dynamic application secrets written straight to Key Vault
+# Dynamic application secrets written straight to Key Vault.
+# depends_on = [module.data] ensures all secrets wait for the
+# null_resource.kv_whitelist_runner_ip provisioner (inside module.data)
+# to finish adding the runner IP + 15s sleep before writing secrets.
 resource "random_password" "jwt_secret" {
   length  = 32
   special = true
@@ -111,6 +113,7 @@ resource "azurerm_key_vault_secret" "mongodb_uri" {
   key_vault_id    = module.data.key_vault_id
   content_type    = "connection-string"
   expiration_date = "2027-12-31T23:59:59Z"
+  depends_on      = [module.data]
 }
 
 resource "azurerm_key_vault_secret" "azure_openai_key" {
@@ -119,6 +122,7 @@ resource "azurerm_key_vault_secret" "azure_openai_key" {
   key_vault_id    = module.data.key_vault_id
   content_type    = "api-key"
   expiration_date = "2027-12-31T23:59:59Z"
+  depends_on      = [module.data]
 }
 
 resource "azurerm_key_vault_secret" "azure_speech_key" {
@@ -127,6 +131,7 @@ resource "azurerm_key_vault_secret" "azure_speech_key" {
   key_vault_id    = module.data.key_vault_id
   content_type    = "api-key"
   expiration_date = "2027-12-31T23:59:59Z"
+  depends_on      = [module.data]
 }
 
 resource "azurerm_key_vault_secret" "jwt_secret" {
@@ -135,6 +140,7 @@ resource "azurerm_key_vault_secret" "jwt_secret" {
   key_vault_id    = module.data.key_vault_id
   content_type    = "text/plain"
   expiration_date = "2027-12-31T23:59:59Z"
+  depends_on      = [module.data]
 }
 
 # ── Service Bus ────────────────────────────────────────────────────────────────
@@ -151,6 +157,7 @@ resource "azurerm_key_vault_secret" "servicebus_connection" {
   key_vault_id    = module.data.key_vault_id
   content_type    = "connection-string"
   expiration_date = "2027-12-31T23:59:59Z"
+  depends_on      = [module.data]
 }
 
 # ── Email (SMTP via Gmail App Password or any SMTP provider) ───────────────────
@@ -163,6 +170,7 @@ resource "azurerm_key_vault_secret" "smtp_user" {
   key_vault_id    = module.data.key_vault_id
   content_type    = "text/plain"
   expiration_date = "2027-12-31T23:59:59Z"
+  depends_on      = [module.data]
 }
 
 resource "azurerm_key_vault_secret" "smtp_pass" {
@@ -171,4 +179,5 @@ resource "azurerm_key_vault_secret" "smtp_pass" {
   key_vault_id    = module.data.key_vault_id
   content_type    = "text/plain"
   expiration_date = "2027-12-31T23:59:59Z"
+  depends_on      = [module.data]
 }
