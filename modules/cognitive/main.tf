@@ -21,22 +21,52 @@ resource "azurerm_cognitive_account" "openai" {
   }
 }
 
-# GPT-4o Model Deployment
-# resource "azurerm_cognitive_deployment" "gpt4o" {
-#   name                 = "gpt-4o"
-#   cognitive_account_id = azurerm_cognitive_account.openai.id
-# 
-#   model {
-#     format  = "OpenAI"
-#     name    = "gpt-4o"
-#     version = "2024-11-20"
-#   }
-# 
-#   sku {
-#     name     = "GlobalStandard"
-#     capacity = 10
-#   }
-# }
+# Azure OpenAI Account – eastus2 (active, public access, confirmed 200K TPM quota for gpt-4.1-mini)
+# The legacy cogni-openai (eastus) is retained above for its private endpoint / DNS zone.
+#
+# TERRAFORM IMPORT – run these once before the first `terraform apply`:
+#   terraform import 'module.cognitive.azurerm_cognitive_account.openai_eastus2' \
+#     '/subscriptions/2cfa4708-9e24-48c2-b9c6-1e92f29781af/resourceGroups/test-rg/providers/Microsoft.CognitiveServices/accounts/cogni-openai-eastus2'
+resource "azurerm_cognitive_account" "openai_eastus2" {
+  #checkov:skip=CKV_AZURE_236: App uses API key from Key Vault - disabling local auth would break AI service
+  #checkov:skip=CKV2_AZURE_22: Customer-managed key encryption not required for this workload tier
+  #checkov:skip=CKV_AZURE_247: Cognitive DLP is an enterprise Prisma Cloud feature, not applicable here
+  name                          = "cogni-openai-eastus2"
+  location                      = "eastus2"
+  resource_group_name           = var.resource_group_name
+  kind                          = "OpenAI"
+  sku_name                      = "S0"
+  public_network_access_enabled = true # Public – AKS pods reach it via node egress IP
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  tags = {
+    Environment = "Production"
+    Project     = "CogniDispatch"
+  }
+}
+
+# gpt-4.1-mini Deployment on cogni-openai-eastus2 (30K TPM GlobalStandard)
+# TERRAFORM IMPORT – run once before first `terraform apply`:
+#   terraform import 'module.cognitive.azurerm_cognitive_deployment.gpt41mini' \
+#     '/subscriptions/2cfa4708-9e24-48c2-b9c6-1e92f29781af/resourceGroups/test-rg/providers/Microsoft.CognitiveServices/accounts/cogni-openai-eastus2/deployments/gpt-4.1-mini'
+resource "azurerm_cognitive_deployment" "gpt41mini" {
+  name                 = "gpt-4.1-mini"
+  cognitive_account_id = azurerm_cognitive_account.openai_eastus2.id
+
+  model {
+    format  = "OpenAI"
+    name    = "gpt-4.1-mini"
+    version = "2025-04-14"
+  }
+
+  sku {
+    name     = "GlobalStandard"
+    capacity = 30 # 30K TPM – eastus2 confirmed quota
+  }
+}
 
 # OpenAI Private Endpoint
 resource "azurerm_private_endpoint" "pe_openai" {
