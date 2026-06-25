@@ -1,5 +1,12 @@
 data "azurerm_client_config" "current" {}
 
+locals {
+  # If grafana_admin_object_id is not explicitly set, fall back to the identity
+  # of whoever is running Terraform (e.g. the GitHub Actions OIDC service principal).
+  # This prevents PrincipalNotFound when the old hardcoded Object ID no longer exists.
+  grafana_admin_principal_id = var.grafana_admin_object_id != "" ? var.grafana_admin_object_id : data.azurerm_client_config.current.object_id
+}
+
 # 1. Azure Monitor Workspace (stores Prometheus metrics)
 resource "azurerm_monitor_workspace" "workspace" {
   name                = "mon-cognidispatch"
@@ -86,10 +93,13 @@ resource "azurerm_role_assignment" "grafana_monitor_reader" {
   principal_type       = "ServicePrincipal"
 }
 
-# 7. Role Assignment: Grant Grafana Admin rights to the deploying user
+# 7. Role Assignment: Grant Grafana Admin rights to the deploying identity
+# Uses local.grafana_admin_principal_id which falls back to the current OIDC
+# service principal if no explicit Object ID is provided via var.grafana_admin_object_id.
 resource "azurerm_role_assignment" "grafana_admin" {
   scope                = azurerm_dashboard_grafana.grafana.id
   role_definition_name = "Grafana Admin"
-  principal_id         = var.grafana_admin_object_id
-  principal_type       = "User"
+  principal_id         = local.grafana_admin_principal_id
+  principal_type       = "ServicePrincipal"
 }
+

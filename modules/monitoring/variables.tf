@@ -14,7 +14,7 @@ variable "aks_cluster_id" {
 }
 
 variable "grafana_admin_object_id" {
-  description = "The Object ID of the user to be assigned Grafana Admin rights in the dashboard"
+  description = "The Object ID of the user/service principal to be assigned Grafana Admin rights. Defaults to the deploying identity."
   type        = string
-  default     = "d9cbf12f-3add-4139-8bc6-7e058e9d7870"
+  default     = ""
 }
