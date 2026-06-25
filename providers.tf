@@ -34,3 +34,5 @@ provider "azurerm" {
 
 provider "azuread" {
 }
+
+# Trigger pipeline run to execute locked version and OIDC changes
