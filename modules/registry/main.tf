@@ -11,7 +11,11 @@ resource "azurerm_container_registry" "acr" {
   location                      = var.location
   sku                           = "Premium"
   admin_enabled                 = false
-  public_network_access_enabled = false # Disabled: private endpoint handles all registry access
+  public_network_access_enabled = true
+
+  network_rule_set {
+    default_action = "Deny"
+  }
 
   tags = {
     Environment = "Production"
