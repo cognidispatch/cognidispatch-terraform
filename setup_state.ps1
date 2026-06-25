@@ -1,5 +1,5 @@
 $RG="rg-terraform-state"
-$SA="stcognitfstate589b4"
+$SA="stcognitfstatea0ec9"
 $CONTAINER="tfstate"
 $LOC="japanwest"
 
