@@ -14,7 +14,7 @@ resource "azurerm_container_registry" "acr" {
   public_network_access_enabled = true
 
   network_rule_set {
-    default_action = "Deny"
+    default_action = "Allow"
   }
 
   tags = {
