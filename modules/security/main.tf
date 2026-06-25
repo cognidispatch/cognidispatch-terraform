@@ -171,13 +171,13 @@ locals {
 }
 
 resource "azuread_application_federated_identity_credential" "github_repo_cred" {
-  for_each              = local.github_fed_creds
-  application_id        = data.azuread_application.github_oidc.id
-  display_name          = each.key
-  description           = each.value.description
-  audiences             = ["api://AzureADTokenExchange"]
-  issuer                = "https://token.actions.githubusercontent.com"
-  subject               = each.value.subject
+  for_each       = local.github_fed_creds
+  application_id = data.azuread_application.github_oidc.id
+  display_name   = each.key
+  description    = each.value.description
+  audiences      = ["api://AzureADTokenExchange"]
+  issuer         = "https://token.actions.githubusercontent.com"
+  subject        = each.value.subject
 }
 
 
