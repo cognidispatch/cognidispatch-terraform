@@ -83,6 +83,7 @@ resource "azurerm_role_assignment" "grafana_monitor_reader" {
   scope                = azurerm_monitor_workspace.workspace.id
   role_definition_name = "Monitoring Reader"
   principal_id         = azurerm_dashboard_grafana.grafana.identity[0].principal_id
+  principal_type       = "ServicePrincipal"
 }
 
 # 7. Role Assignment: Grant Grafana Admin rights to the deploying user
@@ -90,4 +91,5 @@ resource "azurerm_role_assignment" "grafana_admin" {
   scope                = azurerm_dashboard_grafana.grafana.id
   role_definition_name = "Grafana Admin"
   principal_id         = var.grafana_admin_object_id
+  principal_type       = "User"
 }

@@ -99,7 +99,28 @@ resource "azurerm_key_vault" "kv" {
   lifecycle {
     ignore_changes = [
       access_policy,
+      # network_acls is managed by the workflow (az keyvault network-rule add)
+      # to handle the Plan runner IP ≠ Apply runner IP mismatch in GitHub Actions.
+      # Terraform should not overwrite manually whitelisted IPs after initial creation.
+      network_acls,
     ]
+  }
+
+  # On first-run: the KV doesn't exist at the start of the Apply job,
+  # so the workflow's pre-apply whitelist step is skipped.
+  # This provisioner adds the current caller's IP immediately after KV creation
+  # so the subsequent secret writes in the same apply can succeed.
+  provisioner "local-exec" {
+    command = <<-EOT
+      RUNNER_IP=$(curl -s https://api.ipify.org)
+      echo "Adding runner IP $RUNNER_IP to KV firewall post-create..."
+      az keyvault network-rule add \
+        --name "${self.name}" \
+        --resource-group "${self.resource_group_name}" \
+        --ip-address "$RUNNER_IP" || true
+      sleep 15
+    EOT
+    interpreter = ["bash", "-c"]
   }
 }
 
