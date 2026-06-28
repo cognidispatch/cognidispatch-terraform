@@ -8,7 +8,7 @@ resource "azurerm_servicebus_namespace" "sb" {
   location                      = var.location
   resource_group_name           = var.resource_group_name
   sku                           = "Standard"
-  public_network_access_enabled = false # Disabled: connection string used over private network
+  public_network_access_enabled = true # Enabled: allow connection over public IP
 
   identity {
     type = "SystemAssigned"
