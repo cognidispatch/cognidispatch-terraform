@@ -16,6 +16,18 @@ resource "azurerm_key_vault_access_policy" "pod_kv_policy" {
   ]
 }
 
+# Key Vault Access Policy for Jumpbox VM (allows manual secret management)
+resource "azurerm_key_vault_access_policy" "jumpbox_kv_policy" {
+  key_vault_id = var.key_vault_id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = var.jumpbox_principal_id
+
+  secret_permissions = [
+    "Get", "List", "Set", "Delete", "Recover"
+  ]
+}
+
+
 # OIDC Federated Identity Credentials for Microservices
 locals {
   service_accounts = [

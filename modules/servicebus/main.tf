@@ -8,7 +8,7 @@ resource "azurerm_servicebus_namespace" "sb" {
   location                      = var.location
   resource_group_name           = var.resource_group_name
   sku                           = "Standard"
-  public_network_access_enabled = true # Enabled: allow connection over public IP
+  public_network_access_enabled = true # Enabled: AKS pods connect via NAT Gateway public IP
 
   identity {
     type = "SystemAssigned"
